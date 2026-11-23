@@ -1,0 +1,8 @@
+{
+  "place": "none",
+  "title": "Tabs (Mainframe)",
+  "cloned_from": {
+    "name": "over9k-tabs",
+    "version": "0.1.16"
+  }
+}

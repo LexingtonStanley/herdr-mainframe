@@ -1,0 +1,16 @@
+{
+  "place": "none",
+  "title": "Usage",
+  "overlay": {
+    "kind": "popup",
+    "at": "top",
+    "offset": 40,
+    "width": 0.92,
+    "height": 0.88
+  },
+  "focusable": true,
+  "cloned_from": {
+    "name": "usage",
+    "version": "0.1.17"
+  }
+}

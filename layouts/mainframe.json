@@ -1,0 +1,359 @@
+{
+  "id": "root",
+  "type": "column",
+  "resizable": false,
+  "children": [
+    {
+      "id": "deck",
+      "type": "stack",
+      "active": "desktop",
+      "children": [
+        {
+          "id": "desktop",
+          "type": "row",
+          "children": [
+            {
+              "id": "sidebar",
+              "type": "column",
+              "children": [
+                {
+                  "id": "brand",
+                  "type": "block",
+                  "content": {
+                    "mod": "mainframe-chrome"
+                  },
+                  "size": {
+                    "px": 46
+                  },
+                  "window_drag": true
+                },
+                {
+                  "id": "sidebar-lists",
+                  "type": "column",
+                  "children": [
+                    {
+                      "id": "spaces",
+                      "type": "block",
+                      "content": {
+                        "mod": "mainframe-side"
+                      },
+                      "size": {
+                        "weight": 1
+                      },
+                      "min": 90
+                    }
+                  ]
+                },
+                {
+                  "id": "usage",
+                  "type": "block",
+                  "content": {
+                    "mod": "over9k-usage"
+                  },
+                  "size": {
+                    "px": 150
+                  }
+                },
+                {
+                  "id": "sidebar-footer",
+                  "type": "block",
+                  "content": {
+                    "mod": "mainframe-chrome",
+                    "props": {
+                      "footer": true
+                    }
+                  },
+                  "size": {
+                    "px": 97
+                  }
+                }
+              ],
+              "size": {
+                "px": 268
+              },
+              "min": 44,
+              "max": 480,
+              "background": "chrome",
+              "resizable": false
+            },
+            {
+              "id": "work",
+              "type": "column",
+              "children": [
+                {
+                  "id": "tabs",
+                  "type": "block",
+                  "content": {
+                    "mod": "mainframe-tabs"
+                  },
+                  "size": {
+                    "px": 46
+                  },
+                  "window_drag": true
+                },
+                {
+                  "id": "work-body",
+                  "type": "row",
+                  "children": [
+                    {
+                      "id": "view",
+                      "type": "stack",
+                      "active": "view-tab",
+                      "children": [
+                        {
+                          "id": "view-tab",
+                          "type": "block",
+                          "content": {
+                            "tab": "active",
+                            "pane": {
+                              "header": {
+                                "content": {
+                                  "mod": "pane"
+                                },
+                                "reveal": "always",
+                                "height": 30,
+                                "position": "top"
+                              },
+                              "background": "background",
+                              "border": {
+                                "width": 1,
+                                "color": "border"
+                              },
+                              "focus": {
+                                "width": 1,
+                                "color": "accent"
+                              },
+                              "radius": 10,
+                              "gap": 8,
+                              "lone": true
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "panel",
+                      "type": "column",
+                      "children": [
+                        {
+                          "id": "panel-body",
+                          "type": "stack",
+                          "children": [
+                            {
+                              "id": "files-browser",
+                              "type": "block",
+                              "content": {
+                                "mod": "files"
+                              }
+                            },
+                            {
+                              "id": "files",
+                              "type": "block",
+                              "content": {
+                                "mod": "files"
+                              }
+                            },
+                            {
+                              "id": "changes",
+                              "type": "block",
+                              "content": {
+                                "mod": "changes"
+                              }
+                            },
+                            {
+                              "id": "todos",
+                              "type": "block",
+                              "content": {
+                                "mod": "over9k-todos"
+                              }
+                            },
+                            {
+                              "id": "prompts",
+                              "type": "block",
+                              "content": {
+                                "mod": "over9k-prompts"
+                              }
+                            },
+                            {
+                              "id": "asks",
+                              "type": "block",
+                              "content": {
+                                "mod": "asks"
+                              }
+                            },
+                            {
+                              "id": "graph",
+                              "type": "block",
+                              "content": {
+                                "mod": "mainframe-agents",
+                                "props": {
+                                  "panel": true
+                                }
+                              }
+                            },
+                            {
+                              "id": "prs",
+                              "type": "block",
+                              "content": {
+                                "mod": "mainframe-prs",
+                                "props": {
+                                  "panel": true
+                                }
+                              }
+                            },
+                            {
+                              "id": "usage-panel",
+                              "type": "block",
+                              "content": {
+                                "mod": "mainframe-usage",
+                                "props": {
+                                  "panel": true
+                                }
+                              }
+                            }
+                          ],
+                          "active": "files-browser"
+                        }
+                      ],
+                      "size": {
+                        "px": 368
+                      },
+                      "min": 280,
+                      "max": 1600,
+                      "hidden": true
+                    }
+                  ],
+                  "padding": 8,
+                  "gap": 8
+                },
+                {
+                  "id": "status",
+                  "type": "block",
+                  "content": {
+                    "mod": "workspace-status"
+                  },
+                  "size": {
+                    "px": 28
+                  }
+                }
+              ],
+              "resizable": false
+            }
+          ],
+          "divider": {
+            "width": 1,
+            "color": "border"
+          }
+        },
+        {
+          "id": "grid",
+          "type": "column",
+          "resizable": false,
+          "background": "canvas",
+          "children": [
+            {
+              "id": "grid-bar",
+              "type": "block",
+              "size": {
+                "px": 46
+              },
+              "window_drag": true,
+              "content": {
+                "mod": "mainframe-grid",
+                "props": {
+                  "view": "bar"
+                }
+              }
+            },
+            {
+              "id": "grid-scene",
+              "type": "block",
+              "content": {
+                "mod": "mainframe-grid",
+                "props": {
+                  "view": "scene"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grid-keys",
+      "type": "block",
+      "size": {
+        "px": 0
+      },
+      "content": {
+        "mod": "mainframe-grid",
+        "props": {
+          "view": "keys"
+        }
+      }
+    },
+    {
+      "id": "screen",
+      "type": "stack",
+      "size": {
+        "px": 0
+      },
+      "active": "tab",
+      "children": [
+        {
+          "id": "tab",
+          "type": "block",
+          "content": {
+            "mod": "mainframe-grid",
+            "props": {
+              "view": "blank"
+            }
+          }
+        },
+        {
+          "id": "chat",
+          "type": "block",
+          "content": {
+            "mod": "mainframe-grid",
+            "props": {
+              "view": "blank"
+            }
+          }
+        },
+        {
+          "id": "needs",
+          "type": "block",
+          "content": {
+            "mod": "mainframe-grid",
+            "props": {
+              "view": "blank"
+            }
+          }
+        },
+        {
+          "id": "overview",
+          "type": "block",
+          "content": {
+            "mod": "mainframe-grid",
+            "props": {
+              "view": "blank"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "background": "canvas",
+  "terminal_padding": [
+    14,
+    12
+  ],
+  "titlebar": "none",
+  "traffic_lights": [
+    12,
+    16
+  ],
+  "terminal_menu": "over9k-menu",
+  "preview": "layouts/mainframe.svg",
+  "theme": "cyan-matrix"
+}

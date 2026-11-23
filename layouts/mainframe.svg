@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" shape-rendering="crispEdges">
+  <!-- Mainframe in Cyan Matrix: the sidebar with its characters, the bar's three groups, a pane, and the Grid's towers behind it. -->
+  <rect width="320" height="200" fill="#020a08"/>
+  <!-- sidebar -->
+  <rect width="78" height="200" fill="#030d0a"/>
+  <rect x="78" width="1" height="200" fill="#12332c"/>
+  <rect x="8" y="8" width="2" height="2" fill="#00f0c0"/><rect x="6" y="11" width="6" height="7" fill="none" stroke="#00f0c0" stroke-width="1.5"/>
+  <rect x="17" y="11" width="34" height="5" fill="#8af7e4"/>
+  <rect x="6" y="27" width="24" height="7" rx="3" fill="#0d2b25"/><rect x="34" y="28" width="18" height="5" rx="2" fill="#3b7166"/>
+  <circle cx="9" cy="45" r="2" fill="#ff5d62"/><rect x="14" y="43" width="24" height="4" rx="2" fill="#57a092"/>
+  <rect x="6" y="52" width="66" height="15" rx="4" fill="#0a2620"/>
+  <rect x="10" y="54" width="10" height="11" fill="#ff5fc8"/><rect x="12" y="57" width="6" height="5" fill="#e8b890"/>
+  <rect x="25" y="55" width="26" height="4" rx="2" fill="#8af7e4"/><rect x="25" y="61" width="36" height="3" rx="1.5" fill="#3b7166"/>
+  <rect x="10" y="72" width="10" height="11" fill="#5b8def"/><rect x="12" y="75" width="6" height="5" fill="#e8b890"/>
+  <rect x="25" y="73" width="20" height="4" rx="2" fill="#8af7e4"/><rect x="25" y="79" width="32" height="3" rx="1.5" fill="#3b7166"/>
+  <circle cx="9" cy="95" r="2" fill="#b8e994"/><rect x="14" y="93" width="20" height="4" rx="2" fill="#57a092"/>
+  <rect x="10" y="103" width="10" height="11" fill="#b8e994"/><rect x="12" y="106" width="6" height="5" fill="#8a5a3c"/>
+  <rect x="25" y="104" width="30" height="4" rx="2" fill="#8af7e4"/><rect x="25" y="110" width="26" height="3" rx="1.5" fill="#3b7166"/>
+  <rect x="10" y="121" width="10" height="11" fill="#9aa4b4"/><rect x="12" y="124" width="6" height="5" fill="#ff9a3c"/>
+  <rect x="25" y="122" width="22" height="4" rx="2" fill="#57a092"/><rect x="25" y="128" width="34" height="3" rx="1.5" fill="#3b7166"/>
+  <rect y="158" width="78" height="1" fill="#12332c"/>
+  <rect x="8" y="166" width="20" height="4" rx="2" fill="#57a092"/><rect x="58" y="166" width="12" height="4" rx="2" fill="#00d68f"/>
+  <rect x="8" y="176" width="20" height="4" rx="2" fill="#57a092"/><rect x="58" y="176" width="12" height="4" rx="2" fill="#b8e994"/>
+  <rect x="8" y="188" width="40" height="4" rx="2" fill="#3b7166"/>
+  <!-- tab bar: tabs, then three groups of buttons -->
+  <rect x="79" width="241" height="17" fill="#030d0a"/><rect x="79" y="17" width="241" height="1" fill="#12332c"/>
+  <rect x="84" y="4" width="34" height="10" rx="3" fill="#0a2620"/><rect x="87" y="6" width="6" height="6" fill="#ff5fc8"/><rect x="96" y="7" width="18" height="4" rx="2" fill="#8af7e4"/>
+  <rect x="200" y="6" width="14" height="6" rx="2" fill="#0d2b25"/><rect x="203" y="8" width="8" height="2" fill="#00f0c0"/>
+  <rect x="218" y="5" width="1" height="8" fill="#12332c"/>
+  <rect x="222" y="7" width="9" height="4" rx="2" fill="#57a092"/><rect x="234" y="7" width="9" height="4" rx="2" fill="#57a092"/><rect x="246" y="7" width="9" height="4" rx="2" fill="#57a092"/><rect x="258" y="7" width="9" height="4" rx="2" fill="#57a092"/>
+  <rect x="271" y="5" width="1" height="8" fill="#12332c"/>
+  <rect x="275" y="7" width="7" height="4" rx="2" fill="#3b7166"/><rect x="285" y="7" width="7" height="4" rx="2" fill="#3b7166"/><rect x="295" y="7" width="7" height="4" rx="2" fill="#3b7166"/>
+  <!-- a pane, focused -->
+  <rect x="84" y="23" width="150" height="160" rx="4" fill="#04110d" stroke="#00f0c0" stroke-width="1"/>
+  <rect x="85" y="34" width="148" height="1" fill="#12332c"/>
+  <rect x="90" y="27" width="30" height="4" rx="2" fill="#8af7e4"/>
+  <rect x="92" y="44" width="4" height="4" rx="2" fill="#00f0c0"/><rect x="100" y="44" width="70" height="4" rx="2" fill="#8af7e4"/>
+  <rect x="92" y="56" width="4" height="4" rx="2" fill="#00f0c0"/><rect x="100" y="56" width="46" height="4" rx="2" fill="#8af7e4"/>
+  <rect x="100" y="66" width="90" height="4" rx="2" fill="#ff5d62"/><rect x="100" y="74" width="98" height="4" rx="2" fill="#00d68f"/>
+  <rect x="92" y="88" width="4" height="4" rx="2" fill="#00f0c0"/><rect x="100" y="88" width="58" height="4" rx="2" fill="#8af7e4"/>
+  <rect x="100" y="98" width="40" height="4" rx="2" fill="#3b7166"/>
+  <rect x="92" y="112" width="5" height="8" fill="#2afadf"/>
+  <!-- the Grid: two towers -->
+  <rect x="240" y="23" width="74" height="160" rx="4" fill="#020a08" stroke="#12332c" stroke-width="1"/>
+  <rect x="250" y="84" width="1" height="6" fill="#1b4038"/><rect x="249" y="82" width="3" height="3" fill="#00f0c0"/>
+  <rect x="244" y="90" width="30" height="88" fill="#1b4038"/>
+  <rect x="246" y="92" width="26" height="26" fill="#04110d"/><rect x="255" y="100" width="8" height="12" fill="#ff5fc8"/><rect x="250" y="114" width="18" height="2" fill="#b8e994"/>
+  <rect x="246" y="121" width="26" height="26" fill="#04110d"/><rect x="255" y="129" width="8" height="12" fill="#5b8def"/><rect x="250" y="143" width="18" height="2" fill="#1b4038"/>
+  <rect x="246" y="150" width="26" height="26" fill="#04110d"/><rect x="255" y="158" width="8" height="12" fill="#9aa4b4"/><rect x="250" y="172" width="18" height="2" fill="#ff5d62"/>
+  <rect x="294" y="113" width="1" height="6" fill="#1b4038"/><rect x="293" y="111" width="3" height="3" fill="#00f0c0"/>
+  <rect x="280" y="119" width="30" height="59" fill="#1b4038"/>
+  <rect x="282" y="121" width="26" height="26" fill="#04110d"/><rect x="291" y="129" width="8" height="12" fill="#b8e994"/><rect x="286" y="143" width="18" height="2" fill="#b8e994"/>
+  <rect x="282" y="150" width="26" height="26" fill="#04110d"/><rect x="291" y="158" width="8" height="12" fill="#ff9a3c"/><rect x="286" y="172" width="18" height="2" fill="#1b4038"/>
+  <rect x="240" y="178" width="74" height="1" fill="#1b4038"/>
+  <!-- status bar -->
+  <rect x="79" y="189" width="241" height="11" fill="#030d0a"/><rect x="79" y="188" width="241" height="1" fill="#12332c"/>
+  <rect x="86" y="193" width="30" height="3" rx="1.5" fill="#3b7166"/><rect x="122" y="193" width="22" height="3" rx="1.5" fill="#ff5d62"/>
+</svg>

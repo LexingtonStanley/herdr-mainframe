@@ -1,0 +1,338 @@
+// Usage numbers from scan.py's sessions (its contract is at the top of scan.py). Pure, so `bun test` covers them.
+// Counts and rates use top-level sessions; tokens and cost include sub-agents (they're the harness's spend).
+
+export const DAY = 86400000;
+const pad = (n) => String(n).padStart(2, "0");
+export const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+export const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+// Local midnight n days away; a clock change in between can't shift it by an hour.
+export const addDays = (ms, n) => startOfDay(startOfDay(ms) + n * DAY + DAY / 2);
+const weekday = (ms) => (new Date(ms).getDay() + 6) % 7; // Monday 0
+const median = (xs) => { if (!xs.length) return null; const a = [...xs].sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+const sum = (xs, f) => xs.reduce((n, x) => n + (f(x) ?? 0), 0);
+
+// 95% Wilson interval for k of n: honest at small n, where k/n alone overclaims.
+export function wilson(k, n, z = 1.96) {
+  if (!n) return null;
+  const p = k / n, d = 1 + (z * z) / n, c = (p + (z * z) / (2 * n)) / d;
+  const h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+  return { p, lo: Math.max(0, c - h), hi: Math.min(1, c + h) };
+}
+
+// 0 (none) to 4: quartiles of the non-zero values, as GitHub's contribution graph does.
+export function levels(values) {
+  const nz = values.filter((v) => v > 0).sort((a, b) => a - b);
+  const q = [0.25, 0.5, 0.75].map((f) => nz[Math.floor(f * (nz.length - 1))] ?? 0);
+  return (v) => (v <= 0 ? 0 : v <= q[0] ? 1 : v <= q[1] ? 2 : v <= q[2] ? 3 : 4);
+}
+
+// Cost per commit: spend over the commits of top-level sessions that recorded a cost (Codex records none). The spend
+// is theirs by default (Skills); Overview passes the spend its Cost tile shows, sub-agents included, so its tiles and
+// rows divide.
+export function perCommitOf(top, spend = null) {
+  const paid = top.filter((s) => s.cost != null && s.commits != null), made = sum(paid, (s) => s.commits);
+  return made ? (spend ?? sum(paid, (s) => s.cost)) / made : null;
+}
+
+export const topModel = (s) => Object.entries(s.models ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "unknown";
+
+// A run that went smoothly: no abort, no API error, no compaction, under 10% failed tool calls.
+export const clean = (s) => !s.aborts && !s.apiErr && !s.compactions && (!s.tools || s.toolErr / s.tools < 0.1);
+
+// The kind of work, read off the run's mix of tool calls (no prompt is read).
+export const KINDS = [["build", "Build"], ["investigate", "Investigate"], ["debug", "Run & debug"], ["research", "Research"], ["orchestrate", "Orchestrate"], ["chat", "Chat"]];
+export function kindOf(s) {
+  const c = s.tc, n = c ? c.edit + c.read + c.bash + c.web + c.agent + c.other : 0;
+  if (!n) return "chat";
+  if (c.agent >= 3 || c.agent / n >= 0.15) return "orchestrate";
+  if (c.edit / n >= 0.1) return "build"; // shells read too (cat, rg), so a tenth of calls being edits is a build
+  if (c.web / n >= 0.3) return "research";
+  return c.bash > c.read ? "debug" : "investigate";
+}
+
+// Compare's radars: each harness and main model with 10+ top-level sessions (the six busiest), its clean-run rate in
+// each kind of work it did 5+ times (null under that: not measured), and its best and weakest measured kinds, ranked
+// by the low end of the rate's 95% interval so 5 of 5 doesn't beat 27 of 30.
+const RADAR_MIN = 10, KIND_MIN = 5;
+export function strengthsOf(top) {
+  const groups = new Map();
+  for (const s of top) { const k = `${s.h}\u0000${topModel(s)}`; (groups.get(k) ?? groups.set(k, []).get(k)).push(s); }
+  return [...groups].filter(([, g]) => g.length >= RADAR_MIN).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([k, g]) => {
+    const [h, model] = k.split("\u0000"), kinds = {};
+    for (const [kind] of KINDS) {
+      const x = g.filter((s) => kindOf(s) === kind);
+      const ok = x.filter(clean).length;
+      const w = x.length >= KIND_MIN ? wilson(ok, x.length) : null;
+      kinds[kind] = { n: x.length, ok, clean: w ? ok / x.length : null, lo: w?.lo ?? null };
+    }
+    const measured = KINDS.map(([kind]) => kind).filter((kind) => kinds[kind].clean != null)
+      .sort((a, b) => kinds[b].lo - kinds[a].lo || kinds[b].n - kinds[a].n);
+    return { h, model, n: g.length, kinds, best: measured[0] ?? null, worst: measured.length > 1 ? measured.at(-1) : null };
+  });
+}
+
+// The GitHub-style year: one cell per day for the last `weeks` weeks (ending this week), by metric.
+export function heat(sessions, { weeks, metric, now = Date.now() }) {
+  const per = new Map();
+  for (const s of sessions) {
+    const k = dayKey(s.start), v = per.get(k) ?? { sessions: 0, tokens: 0, cost: 0, by: {} };
+    if (!s.sub) { v.sessions++; v.by[s.h] = (v.by[s.h] ?? 0) + 1; }
+    v.tokens += s.tok ?? 0; v.cost += s.cost ?? 0;
+    per.set(k, v);
+  }
+  const today = startOfDay(now), first = addDays(today, -(weekday(today) + 7 * (weeks - 1)));
+  const days = [];
+  for (let t = first; t <= today; t = startOfDay(t + DAY + 3600000)) days.push({ t, ...(per.get(dayKey(t)) ?? { sessions: 0, tokens: 0, cost: 0, by: {} }) });
+  const lvl = levels(days.map((d) => d[metric]));
+  return days.map((d) => ({ ...d, wd: weekday(d.t), level: lvl(d[metric]) }));
+}
+
+// Everything else the panel draws, for sessions started in [from, to) by the chosen harnesses (and, with a
+// selection, only those `keep(start)` accepts; `days` is then how many days it covers).
+export function summarize(all, { from, to, harnesses, sameRepos = false, kind = null, keep = () => true, days: n = null }) {
+  const pick = (a, b) => all.filter((s) => s.start >= a && s.start < b && harnesses.has(s.h) && keep(s.start));
+  const ss = pick(from, to), top = ss.filter((s) => !s.sub);
+  const days = n ?? Math.max(1, Math.round((startOfDay(to - 1) - startOfDay(from)) / DAY) + 1);
+
+  // Tiles. Active days and the streak count top-level sessions; the streak may end yesterday.
+  const active = new Set(top.map((s) => dayKey(s.start)));
+  let streak = 0, t = startOfDay(to - 1);
+  if (!active.has(dayKey(t))) t = startOfDay(t - DAY / 2);
+  while (active.has(dayKey(t))) { streak++; t = startOfDay(t - DAY / 2); }
+  const tin = sum(ss, (s) => s.tin), tcr = sum(ss, (s) => s.tcr);
+  const was = pick(from - (to - from), from), wasTop = was.filter((s) => !s.sub); // the period before
+  const tiles = {
+    sessions: top.length, prev: wasTop.length,
+    activeDays: active.size, days, streak,
+    tokens: sum(ss, (s) => s.tok), cacheHit: tin + tcr ? tcr / (tin + tcr) : null,
+    cost: sum(ss, (s) => s.cost), costKnown: ss.some((s) => s.cost != null),
+    costPrev: sum(was, (s) => s.cost),
+    // The "vs before" lines need a history reaching back over the whole period before (within a day), any harness.
+    before: all.some((s) => s.start <= from - (to - from) + DAY),
+    // What the spend got: the agents' `git commit`s (a session's count includes its sub-agents', so top-level only).
+    commits: sum(top, (s) => s.commits), perCommit: perCommitOf(top, sum(ss, (s) => s.cost)),
+    clean: top.length ? top.filter(clean).length / top.length : null,
+    cleanPrev: wasTop.length ? wasTop.filter(clean).length / wasTop.length : null,
+  };
+  // Where tokens go (sub-agents included), and each harness' share of runs, tokens and recorded spend.
+  const mix = mixOf(ss);
+  const split = {};
+  for (const s of ss) {
+    const x = (split[s.h] ??= { runs: 0, tok: 0, cost: 0 });
+    if (!s.sub) x.runs++;
+    x.tok += s.tok ?? 0; x.cost += s.cost ?? 0;
+  }
+
+  // Over time by harness, days up to a month, weeks beyond: tokens (by) and spend with sub-agents, sessions and
+  // commits top-level.
+  const step = days <= 31 ? DAY : 7 * DAY;
+  const buckets = [];
+  for (let t = startOfDay(from); t < to; t = startOfDay(t + step + 3600000)) buckets.push({ t, by: {}, sessions: {}, cost: {}, commits: {} });
+  const add = (m, h, n) => { m[h] = (m[h] ?? 0) + n; };
+  for (const s of ss) {
+    let b = null;
+    for (const x of buckets) if (x.t <= s.start) b = x; else break;
+    if (!b) continue;
+    add(b.by, s.h, s.tok ?? 0);
+    if (s.cost != null) add(b.cost, s.h, s.cost);
+    if (!s.sub) { add(b.sessions, s.h, 1); if (s.commits != null) add(b.commits, s.h, s.commits); }
+  }
+
+  // Where the spend went, by project (scan.py's `where`): the top four, then the rest in one row (key null), so the
+  // rows add up to the Cost tile.
+  const places = new Map();
+  for (const s of ss) {
+    const k = s.where ?? null, p = places.get(k) ?? places.set(k, { key: k, sessions: 0, cost: 0, commits: 0, top: [] }).get(k);
+    p.cost += s.cost ?? 0;
+    if (!s.sub) { p.sessions++; p.commits += s.commits ?? 0; p.top.push(s); }
+  }
+  const ranked = [...places.values()].filter((p) => p.key != null).sort((a, b) => b.cost - a.cost || b.sessions - a.sessions);
+  const rest = [...ranked.slice(4), ...(places.has(null) ? [places.get(null)] : [])];
+  const spend = [...ranked.slice(0, 4), ...(rest.length ? [{ key: null, sessions: sum(rest, (p) => p.sessions), cost: sum(rest, (p) => p.cost),
+    commits: sum(rest, (p) => p.commits), top: rest.flatMap((p) => p.top) }] : [])]
+    .map(({ top: g, ...p }) => ({ ...p, perCommit: perCommitOf(g, p.cost) }));
+
+  // Models by tokens (each owned by the harness that spent most on it), and effort by harness.
+  const models = new Map();
+  for (const s of ss) for (const [m, n] of Object.entries(s.models ?? {})) {
+    const e = models.get(m) ?? { model: m, tokens: 0, by: {} };
+    e.tokens += n; e.by[s.h] = (e.by[s.h] ?? 0) + n;
+    models.set(m, e);
+  }
+  const total = sum([...models.values()], (m) => m.tokens) || 1;
+  const modelRows = [...models.values()].sort((a, b) => b.tokens - a.tokens).slice(0, 8)
+    .map((m) => ({ ...m, share: m.tokens / total, h: Object.entries(m.by).sort((a, b) => b[1] - a[1])[0][0] }));
+  const effort = {};
+  for (const s of top) { const e = (effort[s.h] ??= {}); e[s.effort ?? "default"] = (e[s.effort ?? "default"] ?? 0) + 1; }
+
+  // When work starts: weekday x hour.
+  const punch = Array.from({ length: 7 }, () => Array(24).fill(0));
+  for (const s of top) punch[weekday(s.start)][new Date(s.start).getHours()]++;
+  const rhythm = rhythmOf(top, from, to);
+
+  // Comparison per harness x main model (3+ runs), optionally for one kind of work. Same repos: only repos
+  // two or more harnesses worked in, so a harness isn't judged on easier work than another.
+  const kinds = {};
+  for (const s of top) kinds[kindOf(s)] = (kinds[kindOf(s)] ?? 0) + 1;
+  let pool = kind ? top.filter((s) => kindOf(s) === kind) : top;
+  if (sameRepos) {
+    const hs = new Map();
+    for (const s of pool) if (s.repo) (hs.get(s.repo) ?? hs.set(s.repo, new Set()).get(s.repo)).add(s.h);
+    pool = pool.filter((s) => s.repo && hs.get(s.repo).size > 1);
+  }
+  const groups = new Map();
+  for (const s of pool) { const k = `${s.h}\u0000${topModel(s)}`; (groups.get(k) ?? groups.set(k, []).get(k)).push(s); }
+  const score = [...groups].filter(([, g]) => g.length >= 3).map(([k, g]) => {
+    const [h, model] = k.split("\u0000"), known = g.filter((s) => s.commits != null), ok = g.filter(clean).length;
+    const costed = g.filter((s) => s.cost != null), costedOk = costed.filter(clean).length, priced = costed.length >= 3;
+    const spend = sum(costed, (s) => s.cost), m = mixOf(g), tools = sum(g, (s) => s.tools);
+    return {
+      h, model, n: g.length,
+      clean: wilson(ok, g.length),
+      commit: wilson(known.filter((s) => s.commits > 0).length, known.length),
+      // What one clean run costs you: all spend over the clean runs (failed runs are paid for too).
+      cps: priced && costedOk ? spend / costedOk : null,
+      tps: ok ? sum(g, (s) => s.tok) / ok : null,
+      loops: median(g.map((s) => s.tools ?? 0)),
+      medTok: median(g.map((s) => s.tok ?? 0)),
+      // Cost anatomy: the token mix behind the spend, what a token and an output token cost, and how
+      // much context is read per token written (agent loops re-read their context every step).
+      mix: m,
+      per1M: priced ? spend / Math.max(1, sum(costed, (s) => s.tok)) * 1e6 : null,
+      per1kOut: priced ? spend / Math.max(1, sum(costed, (s) => s.tout)) * 1e3 : null,
+      readPerOut: m.tout ? (m.tin + m.tcw + m.tcr) / m.tout : null,
+      perCommit: priced && costed.some((s) => s.commits > 0) ? spend / costed.filter((s) => s.commits > 0).length : null,
+      cacheHit: m.tin + m.tcr ? m.tcr / (m.tin + m.tcr) : null,
+      toolErr: tools ? sum(g, (s) => s.toolErr) / tools : null,
+    };
+  }).sort((a, b) => b.clean.lo - a.clean.lo);
+  // A winner only when its whole interval clears the runner-up's.
+  const best = score.length > 1 && score[0].clean.lo > score[1].clean.hi ? score[0] : null;
+
+  return { tiles, mix, split, step, buckets, spend, strengths: strengthsOf(top), models: modelRows, effort, punch, rhythm, kinds, score, best };
+}
+
+// What the work delivered in [from, to): your commits and lines, PRs, worktrees, per day or week, per repo.
+export function outputOf(out, { from, to, step, keep = () => true }) {
+  const commits = (out?.commits ?? []).filter((c) => c.t >= from && c.t < to && keep(c.t));
+  const prs = (out?.prs ?? []).filter((p) => p.created >= from && p.created < to && keep(p.created));
+  const merged = (out?.prs ?? []).filter((p) => p.merged && p.merged >= from && p.merged < to && keep(p.merged));
+  const buckets = [];
+  for (let t = startOfDay(from); t < to; t = startOfDay(t + step + 3600000)) buckets.push({ t, commits: 0, add: 0, del: 0, merged: 0 });
+  const into = (ms) => { let b = null; for (const x of buckets) if (x.t <= ms) b = x; else break; return b; };
+  for (const c of commits) { const b = into(c.t); if (b) { b.commits++; b.add += c.add; b.del += c.del; } }
+  for (const p of merged) { const b = into(p.merged); if (b) b.merged++; }
+  const repos = new Map();
+  for (const c of commits) { const r = repos.get(c.repo) ?? repos.set(c.repo, { repo: c.repo, commits: 0, add: 0, del: 0 }).get(c.repo); r.commits++; r.add += c.add; r.del += c.del; }
+  const trees = out?.worktrees ?? [];
+  return {
+    commits: commits.length, add: sum(commits, (c) => c.add), del: sum(commits, (c) => c.del),
+    activeDays: new Set(commits.map((c) => dayKey(c.t))).size,
+    opened: prs.length, merged: merged.length, mergeHours: median(merged.map((p) => (p.merged - p.created) / 3600000)),
+    worktrees: sum(trees, (w) => w.n), treeRepos: trees.length, buckets,
+    repos: [...repos.values()].sort((a, b) => b.commits - a.commits).slice(0, 8),
+    recent: [...(out?.prs ?? [])].filter((p) => p.created < to).sort((a, b) => b.created - a.created).slice(0, 5),
+  };
+}
+
+// Tokens by kind: fresh input, cache writes, cache reads, output (nulls, where a harness doesn't split, count 0).
+export const mixOf = (ss) => ({ tin: sum(ss, (s) => s.tin), tcw: sum(ss, (s) => s.tcw), tcr: sum(ss, (s) => s.tcr), tout: sum(ss, (s) => s.tout) });
+
+// Session lengths, the weekly shape, and how many agents ran at once.
+// ponytail: a run counts as at most 8h, because a resumed session's start-to-end spans the days in between.
+export const LENGTHS = [[5, "<5m"], [15, "5–15m"], [30, "15–30m"], [60, "30m–1h"], [120, "1–2h"], [240, "2–4h"], [Infinity, "4h+"]];
+export function rhythmOf(top, from = null, to = null) {
+  const mins = top.map((s) => Math.min(480, Math.max(0, (s.end - s.start) / 60000))); // resumed runs span days: 8h at most
+  const lengths = LENGTHS.map(([max], i) => mins.filter((m) => m < max && (i === 0 || m >= LENGTHS[i - 1][0])).length);
+  const events = top.flatMap((s) => [[s.start, 1], [Math.min(s.end, s.start + 8 * 3600000), -1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const peak = new Map();
+  let cur = 0;
+  for (const [t, d] of events) { cur += d; if (d > 0) peak.set(dayKey(t), Math.max(peak.get(dayKey(t)) ?? 0, cur)); }
+  const peaks = [...peak.values()];
+  const weekdays = Array(7).fill(0);
+  for (const s of top) weekdays[weekday(s.start)]++;
+  // Every day of the period with its peak (0 when nothing ran), for the "agents at once" strip.
+  const daily = [];
+  if (from != null) for (let t = startOfDay(from); t < to; t = startOfDay(t + DAY + 3600000)) daily.push({ t, n: peak.get(dayKey(t)) ?? 0 });
+  return {
+    lengths, medianMin: median(mins), longestMin: mins.length ? Math.max(...mins) : 0,
+    perDay: peak.size ? top.length / peak.size : 0, weekdays, weekend: top.length ? (weekdays[5] + weekdays[6]) / top.length : 0,
+    peakParallel: peaks.length ? Math.max(...peaks) : 0, typicalParallel: median(peaks) ?? 0, daily,
+  };
+}
+
+// A selection: days (local midnights) or slots of the week (weekday * 24 + hour). A target is what one press
+// covers: days [first, last]; slots [[weekday, weekday], [hour, hour]] (a cell, an hour row, a weekday column).
+// span(a, b): everything between two targets, as a drag or shift-click draws it.
+export function span(kind, a, b) {
+  const out = [];
+  if (kind === "days") for (let t = Math.min(a[0], b[0]); t <= Math.max(a[1], b[1]); t = addDays(t, 1)) out.push(t);
+  else for (let d = Math.min(a[0][0], b[0][0]); d <= Math.max(a[0][1], b[0][1]); d++)
+    for (let h = Math.min(a[1][0], b[1][0]); h <= Math.max(a[1][1], b[1][1]); h++) out.push(d * 24 + h);
+  return out;
+}
+// Whether a moment falls in the selection.
+export const keepOf = ({ kind, keys }) => (kind === "days" ? (ms) => keys.has(startOfDay(ms)) : (ms) => keys.has(weekday(ms) * 24 + new Date(ms).getHours()));
+
+// The tab ← / → move to (wrapping), or null while a date field has the caret: there they move the caret.
+export function tabAfter(tabs, cur, key, typing) {
+  if (typing) return null;
+  const i = tabs.findIndex(([id]) => id === cur);
+  return tabs[(i + (key === "right" ? 1 : tabs.length - 1)) % tabs.length][0];
+}
+
+// ---- Skills: which do well ----
+
+// A skill's category, from how a word of its name starts (words split at - _ :; the first category that matches), so
+// "writing-plans" is planning but "clear-explanations" isn't. The person may regroup later.
+export const SKILL_CATEGORIES = [
+  ["Code review", /(^|[-_:])(review|audit)/],
+  ["Planning and design", /(^|[-_:])(plan|brainstorm|design|architect|spec|grill)/],
+  ["Testing and debugging", /(^|[-_:])(test|tdd|debug|verif)/],
+  ["Writing and explaining", /(^|[-_:])(expla|writ|doc|readme)/],
+  ["Browsing", /(^|[-_:])(browser|chrome)/],
+];
+export const categoryOf = (name) => (SKILL_CATEGORIES.find(([, re]) => re.test(name)) ?? ["Other"])[0];
+export const FEW = 5; // fewer sessions than this: shown, but "too few to tell"
+
+// How a group of sessions did: median commits per session (the `git commit`s its agents ran), cost per commit (spend
+// over commits, where both are recorded), the median cost per session (one runaway session can't swing it), and the
+// clean-run rate with its Wilson interval.
+function skillStats(g) {
+  const known = g.filter((s) => s.commits != null), costed = g.filter((s) => s.cost != null);
+  return {
+    n: g.length,
+    commitsMed: median(known.map((s) => s.commits)),
+    perCommit: perCommitOf(g),
+    costMed: median(costed.map((s) => s.cost)),
+    clean: wilson(g.filter(clean).length, g.length),
+  };
+}
+
+// Per skill (or per category), the sessions that used it against the same harnesses' sessions that didn't, with its
+// breakdown by harness and by model. Top-level sessions in [from, to), of `harnesses` when given. Correlation, not
+// cause; a session using several skills counts for each.
+export function skillsOf(sessions, { from, to, harnesses = null, by = "skill" }) {
+  const pool = sessions.filter((s) => !s.sub && s.start >= from && s.start < to && (!harnesses || harnesses.has(s.h)));
+  const keysOf = (s) => [...new Set(Object.keys(s.skills ?? {}).map(by === "category" ? categoryOf : (k) => k))];
+  const groups = new Map();
+  for (const s of pool) for (const k of keysOf(s)) (groups.get(k) ?? groups.set(k, []).get(k)).push(s);
+  const split = (g, f) => {
+    const m = new Map();
+    for (const s of g) (m.get(f(s)) ?? m.set(f(s), []).get(f(s))).push(s);
+    return [...m].map(([key, x]) => ({ key, ...skillStats(x) })).sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
+  };
+  const rows = [...groups].map(([key, g]) => {
+    const hs = new Set(g.map((s) => s.h));
+    const base = pool.filter((s) => hs.has(s.h) && !keysOf(s).includes(key));
+    return { key, category: by === "skill" ? categoryOf(key) : key, ...skillStats(g), base: skillStats(base), few: g.length < FEW,
+      harnesses: split(g, (s) => s.h), models: split(g, topModel) };
+  }).sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
+  const skilled = pool.filter((s) => Object.keys(s.skills ?? {}).length), plain = pool.filter((s) => !Object.keys(s.skills ?? {}).length);
+  const distinct = new Set(pool.flatMap((s) => Object.keys(s.skills ?? {})));
+  return {
+    rows,
+    tiles: { sessions: pool.length, skilled: skilled.length, distinct: distinct.size, top: rows[0]?.key ?? null,
+      costSkilled: skillStats(skilled).costMed, costUnskilled: skillStats(plain).costMed },
+  };
+}

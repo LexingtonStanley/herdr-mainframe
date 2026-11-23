@@ -1,0 +1,16 @@
+{
+  "place": "none",
+  "title": "Agents",
+  "overlay": {
+    "kind": "popup",
+    "at": "top",
+    "offset": 40,
+    "width": 0.92,
+    "height": 0.88
+  },
+  "focusable": true,
+  "cloned_from": {
+    "name": "agent-graph",
+    "version": "0.1.17"
+  }
+}

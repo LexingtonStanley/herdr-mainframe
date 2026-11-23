@@ -1,0 +1,5 @@
+# written by Herdr into each mod folder when installed
+gpui-kit.d.ts
+jsconfig.json
+__pycache__/
+*.pyc
