@@ -22,7 +22,8 @@ const PAGES = [["guide", "Guide"], ["keys", "Keys"], ["options", "Options"]];
 const GUIDE = (key) => [
   ["The Grid", `mods/${TABS}/grid.svg`, [
     `Every agent on one screen${key(`${GRID}.toggle`)}: each computer is a tower, each space a room, each agent a character standing in its room with its status, model, context used and task.`,
-    "Click an agent to go to it. Right-click it to give it another character. With the keyboard: arrows pick an agent, Enter goes to it, C changes its character, Esc comes back.",
+    "Click an agent and its session opens in the dock beside the towers, ready to type in; double-click goes to it at the desk. Right-click gives it another character. With the keyboard: arrows pick an agent, Enter opens it in the dock, Space opens it there and keeps the towers' keyboard, Shift+Enter goes to it at the desk, C changes its character, Esc closes the dock, then comes back.",
+    "Agents that started other agents, on this computer or another, share a colour with them: a bar down the station's edge, \"◂ NAME\" for who started one, and a dot for each one it started. Picking, hovering or opening one lights up the rest. The dock's header lists them; click one to open it there.",
   ]],
   ["Characters", `mods/${GRID}/chars/riot-face.svg`, [
     "Each new agent takes the next free character from a library of 44, and keeps it: on its sidebar row, on its tab and in the Grid. An agent in a tab you named keeps its character across restarts.",

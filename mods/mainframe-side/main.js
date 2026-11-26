@@ -883,8 +883,11 @@ export default class Spaces extends View {
       if (!raw) continue;
       const i = this.withModel(raw, a);
       const at = Math.max(this.lastWork[a.address] ?? 0, (raw.lastAt ?? 0) * 1000);
+      // `inner`: its own subagents still going (Claude's Agent tool, Antigravity's), by what they were
+      // given to do, for the Grid's dock.
       out[a.address] = { model: i.model ?? null, effort: i.effort ?? null, context: i.context != null ? Math.round(i.context) : null,
-        lastAt: at || null, cold: Boolean(i.cold), subs: this.frame ? this.subCount(a) : 0 };
+        lastAt: at || null, cold: Boolean(i.cold), subs: this.frame ? this.subCount(a) : 0,
+        inner: this.liveSubs(a).slice(0, 12).map((x) => ({ desc: x.desc || null, type: x.type || null })) };
     }
     const next = JSON.stringify(out);
     if (next !== this.infoShared) { this.infoShared = next; setShared("mainframe.info", out); }
