@@ -192,6 +192,13 @@
                               }
                             },
                             {
+                              "id": "blender",
+                              "type": "block",
+                              "content": {
+                                "mod": "mainframe-blender"
+                              }
+                            },
+                            {
                               "id": "prs",
                               "type": "block",
                               "content": {
@@ -314,23 +321,38 @@
                       }
                     },
                     {
-                      "id": "grid-term",
-                      "type": "block",
-                      "content": {
-                        "agent": "focused"
-                      },
-                      "background": "background",
-                      "border": {
-                        "width": 1,
-                        "color": "border"
-                      },
-                      "radius": 10,
-                      "focus": {
-                        "border": {
-                          "width": 1,
-                          "color": "accent"
+                      "id": "grid-display",
+                      "type": "stack",
+                      "active": "grid-term",
+                      "children": [
+                        {
+                          "id": "grid-term",
+                          "type": "block",
+                          "content": {
+                            "agent": "focused"
+                          },
+                          "background": "background",
+                          "border": {
+                            "width": 1,
+                            "color": "border"
+                          },
+                          "radius": 10,
+                          "focus": {
+                            "border": {
+                              "width": 1,
+                              "color": "accent"
+                            }
+                          }
+                        },
+                        {
+                          "id": "grid-reader",
+                          "type": "block",
+                          "content": {
+                            "mod": "mainframe-grid",
+                            "props": { "view": "reader" }
+                          }
                         }
-                      }
+                      ]
                     }
                   ]
                 }

@@ -7,13 +7,14 @@ A [Herdr](https://herdr.dev) layout for running many coding agents on several co
 ## What's in it
 
 - **The Grid** (`Ctrl+Shift+Y`): one tower per computer, one room per space, one pixel character per agent, with status, model, context used and task. A screen to stay on: click an agent and its session opens beside the towers as a live terminal you type in; double-click to go to it at the desk.
-- **Families:** agents that started other agents, on this computer or another, share a colour, say who started them, and light up together. Open one and the dock's header lists the rest; click one to open it there.
+- **Crew cards:** children without panes have their own places beside their parent, three to a bunk. Click a terminal-backed child to type to it, or a transcript-only child to read its task and recent messages. Click a status count to visit the next match; `?` shows the Grid controls.
+- **Blender** (`Ctrl+Shift+B`): watch the 3D viewport beside the terminal. Inspect objects, dimensions, geometry, materials and modifiers; see what changed between snapshots and, optionally, which MCP commands ran.
 - **44 characters.** Each agent gets one and keeps it, on its sidebar row, its tab and in the Grid.
 - **One bar for everything:** Asks, Files, Changes, To-do, Timeline, an agents graph, PR review and usage, in groups at the right end that shrink to icons when the tabs need room.
 - **A sidebar that reads cleanly:** Over9k's, with rows that show what fits whole.
 - **Help & options** in the sidebar's footer: a guide, your keys, and four options.
 
-| The desk | The Grid |
+| The desk with Blender open | The Grid with crew cards |
 |---|---|
 | ![The desk](shots/desk.png) | ![The Grid](shots/grid.png) |
 
@@ -26,6 +27,12 @@ Ask an agent in Herdr: "add the layout at herdr.dev/layouts/LexingtonStanley/her
 By hand: copy the same things (move each mod folder in whole), then press `Ctrl+Shift+L` until Mainframe shows.
 
 It runs `git`, `python3` and shell scripts, and `gh` or `glab` if you have them. Linux and macOS; on Windows the sidebar does less.
+
+### Watch Blender
+
+Start the server in Blender’s **N sidebar → BlenderMCP** using the [Blender MCP add-on](https://github.com/ahujasid/blender-mcp). Open **Blender** in Mainframe’s toolbar. It connects to the add-on on `127.0.0.1:9876`; **Connection** changes the port. For Blender on another machine, forward the add-on’s port first, for example `ssh -N -L 9877:127.0.0.1:9876 user@studio`, then enter `9877`.
+
+**Scene** shows the active object and render setup. **Objects** lets you inspect up to 300 objects without changing Blender’s selection. **Activity** shows observed object changes; enable command recording under **Connection** for command names, success and elapsed time. Code, parameters and command output aren’t recorded. The panel polls while visible; **Pause** freezes it, and a lost connection marks the last good snapshot stale.
 
 ## Add-ons
 

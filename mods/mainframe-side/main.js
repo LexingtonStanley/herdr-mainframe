@@ -805,7 +805,7 @@ export default class Spaces extends View {
           if (!this.codexScript) break;
           const [m, t] = a.address.includes("/") ? a.address.split("/") : [null, a.address];
           const r = await exec("sh", ["-c", this.codexScript, "sh", t], m ? { on: m } : {}).catch(() => null);
-          const list = (r?.stdout ?? "").split("\n").filter(Boolean).map((l) => { const [kind, id, desc, start, schedule] = l.split("\t"); return { kind, id, desc, start: +start || null, schedule: schedule || null, output: null }; });
+          const list = (r?.stdout ?? "").split("\n").filter(Boolean).map((l) => { const [kind, id, desc, start, schedule, file] = l.split("\t"); return { kind, id, desc, start: +start || null, schedule: schedule || null, file: file || null, output: null }; });
           if (list.length) tasks[a.address] = [...(tasks[a.address] ?? []), ...list];
         }
         const subsChanged = JSON.stringify([subs, tasks]) !== JSON.stringify([this.subs ?? {}, this.tasks ?? {}]);
@@ -877,17 +877,22 @@ export default class Spaces extends View {
   // which can't ask this mod: shared "mainframe.info", by address. Only set when it changed.
   shareInfo() {
     const out = {};
-    for (const a of agents()) {
+    const listed = agents();
+    const kids = terminals().filter(k => k.state === "live" && k.parent && (k.program?.agent || isAgentProgram(k.agent)));
+    for (const a of [...listed, ...kids]) {
+      if (out[a.address]) continue;
       const codex = isCodex(a) ? codexTitle(a.title) : null;
-      const raw = codex ? (codex.model ? codex : null) : isPi(a) ? this.piInfo[a.address] : this.info[a.address];
-      if (!raw) continue;
+      const raw = codex ?? (isPi(a) ? this.piInfo[a.address] : this.info[a.address]) ?? {};
       const i = this.withModel(raw, a);
       const at = Math.max(this.lastWork[a.address] ?? 0, (raw.lastAt ?? 0) * 1000);
-      // `inner`: its own subagents still going (Claude's Agent tool, Antigravity's), by what they were
-      // given to do, for the Grid's dock.
+      const inner = this.liveSubs(a).map(x => ({
+        id: x.id, desc: x.desc, type: x.type, model: x.model, start: x.start,
+        tokens: Math.round((x.tokens || 0) / 1000) * 1000,
+        file: raw.agent !== "antigravity" && raw.transcript && x.id ? `${raw.transcript.replace(/\.jsonl$/, "")}/subagents/${x.id}.jsonl` : null,
+      }));
+      for (const x of this.bgTasks(a).csubs) inner.push({ id: x.id, desc: x.desc, type: x.schedule || "Codex", start: x.start, file: x.file });
       out[a.address] = { model: i.model ?? null, effort: i.effort ?? null, context: i.context != null ? Math.round(i.context) : null,
-        lastAt: at || null, cold: Boolean(i.cold), subs: this.frame ? this.subCount(a) : 0,
-        inner: this.liveSubs(a).slice(0, 12).map((x) => ({ desc: x.desc || null, type: x.type || null })) };
+        lastAt: at || null, cold: Boolean(i.cold), subs: this.frame ? this.subCount(a) : 0, inner };
     }
     const next = JSON.stringify(out);
     if (next !== this.infoShared) { this.infoShared = next; setShared("mainframe.info", out); }

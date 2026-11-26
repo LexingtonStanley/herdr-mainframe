@@ -29,6 +29,7 @@ function closeAsk(picked) {
 // its own width (dragged widths are remembered), as tabs-plus does.
 const EMERGENCE = [
   ["graph", "Agents", "mods/mainframe-tabs/graph.svg", 620],
+  ["blender", "Blender", "mods/mainframe-blender/blender.svg", 510],
   ["prs", "PRs", "mods/mainframe-tabs/pr.svg", 860],
   ["usage-panel", "Usage", "mods/mainframe-tabs/usage.svg", 760],
 ];
@@ -371,7 +372,7 @@ export default class Tabs extends View {
         timelineOn ? side("prompts", "Timeline", "mods/over9k-prompts/timeline.svg", "Your prompts to this agent, in order") : null,
       ].filter(Boolean),
       // Emergence's panels: the agents graph, PR review, usage.
-      EMERGENCE.map(([id, label, icon]) => side(id, label, icon, `${{ graph: "Agents and their sub-agents, as a graph", prs: "Pull requests to review", "usage-panel": "Tokens and cost, by agent and day" }[id]}${keyHint(`${MOD}.${id}`)}`)),
+      EMERGENCE.filter(([id]) => find(body, id)).map(([id, label, icon]) => side(id, label, icon, `${{ graph: "Agents and their sub-agents, as a graph", blender: "Watch Blender's viewport, scene and MCP activity", prs: "Pull requests to review", "usage-panel": "Tokens and cost, by agent and day" }[id]}${keyHint(`${MOD}.${id}`)}`)),
     ];
     // How many groups go down to icons (0: none; 1: the tools; 2: the panels too; 3: all), so
     // the tabs keep room: about 130px each, up to 60% of the bar.

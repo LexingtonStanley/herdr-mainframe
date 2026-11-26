@@ -6,6 +6,7 @@
     "ctrl-shift-a": "mainframe-tabs.toggle",
     "ctrl-shift-g": "mainframe-tabs.chat",
     "ctrl-shift-d": "mainframe-tabs.graph",
+    "ctrl-shift-b": "mainframe-tabs.blender",
     "ctrl-shift-r": "mainframe-tabs.prs",
     "ctrl-shift-u": "mainframe-tabs.usage-panel",
     "ctrl-shift-y": "mainframe-grid.toggle",

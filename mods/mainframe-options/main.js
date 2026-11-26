@@ -23,7 +23,7 @@ const GUIDE = (key) => [
   ["The Grid", `mods/${TABS}/grid.svg`, [
     `Every agent on one screen${key(`${GRID}.toggle`)}: each computer is a tower, each space a room, each agent a character standing in its room with its status, model, context used and task.`,
     "Click an agent and its session opens in the dock beside the towers, ready to type in; double-click goes to it at the desk. Right-click gives it another character. With the keyboard: arrows pick an agent, Enter opens it in the dock, Space opens it there and keeps the towers' keyboard, Shift+Enter goes to it at the desk, C changes its character, Esc closes the dock, then comes back.",
-    "Agents that started other agents, on this computer or another, share a colour with them: a bar down the station's edge, \"◂ NAME\" for who started one, and a dot for each one it started. Picking, hovering or opening one lights up the rest. The dock's header lists them; click one to open it there.",
+    "Each agent’s crew has cards beside its station. Click one for its terminal or a read-only task and transcript. The coloured links show who started whom, including across computers. Click a status count to visit the next match; ? shows the Grid keys.",
   ]],
   ["Characters", `mods/${GRID}/chars/riot-face.svg`, [
     "Each new agent takes the next free character from a library of 44, and keeps it: on its sidebar row, on its tab and in the Grid. An agent in a tab you named keeps its character across restarts.",
@@ -39,6 +39,9 @@ const GUIDE = (key) => [
   ]],
   ["Agents, PRs, Usage", `mods/${TABS}/graph.svg`, [
     `Three wider panels at the end of the bar: your agents and their sub-agents as a graph${key(`${TABS}.graph`)}, pull requests to review${key(`${TABS}.prs`)}, and tokens and cost by agent and day${key(`${TABS}.usage-panel`)}.`,
+  ]],
+  ["Blender", "mods/mainframe-blender/blender.svg", [
+    `Watch a Blender MCP viewport beside the terminal${key(`${TABS}.blender`)}. Inspect objects, materials and scene changes. Connection selects a local or forwarded port and can enable MCP command timings.`,
   ]],
   ["The bar", `${ICONS}/panel-right.svg`, [
     "The buttons are in three groups: what the main area shows, the side panels, the wider tools. When the tabs need the room the groups go down to icons, from the right; hover one for its name and key.",
@@ -57,6 +60,7 @@ const KEYS = [
   ["Pick a file for Neovim", "herdr-nvim.pick"],
   ["Jump to Neovim's file tree", "herdr-nvim.reveal"],
   ["Agents graph", `${TABS}.graph`],
+  ["Blender viewport", `${TABS}.blender`],
   ["Pull requests", `${TABS}.prs`],
   ["Usage", `${TABS}.usage-panel`],
   ["Switch between recent agents", `${SIDE}.switcher`],

@@ -36,5 +36,5 @@ done | while IFS="|" read -r id nick task role start f; do
   case "$last" in *task_complete*|*turn_aborted*) continue ;; esac
   [ "$nick" = - ] && nick=""
   name="${nick:+$nick: }$(printf '%s' "$task" | tr '_' ' ')"
-  printf 'csub\t%s\t%s\t%s\t%s\n' "$id" "$name" "$start" "$role"
+  printf 'csub\t%s\t%s\t%s\t%s\t%s\n' "$id" "$name" "$start" "$role" "$f"
 done
