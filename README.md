@@ -28,6 +28,23 @@ By hand: copy the same things (move each mod folder in whole), then press `Ctrl+
 
 It runs `git`, `python3` and shell scripts, and `gh` or `glab` if you have them. Linux and macOS; on Windows the sidebar does less.
 
+### Updates
+
+Mainframe looks at this repository every six hours for a newer version. When there is one, an **Update** tag appears on the sidebar's **Mainframe help & options** row. The dialog's **Updates** page lists what changed, and has **Check now** and **Update now**. Nothing is installed until you press Update now.
+
+An update replaces only Mainframe's own files. Your edits to the layout are merged with the new version, and your own keys and options stay. If you changed one of Mainframe's other files yourself, the update stops and names the file, and nothing changes. Every file it replaces is copied to `data/mainframe-update/backups` in Herdr's folder first. It needs `git` and Python 3. To stop the six-hourly look, turn off **Options › Check for updates**.
+
+From a terminal: `python3 ~/.config/herdr-app/mods/mainframe-options/update.py --check` (or `--apply`).
+
+Installed Mainframe before the Updates page existed (before 27 November 2026)? Bring it up to date once from a terminal, and the page is there from then on:
+
+```sh
+git clone https://github.com/LexingtonStanley/herdr-mainframe ~/herdr-mainframe-update
+python3 ~/herdr-mainframe-update/mods/mainframe-options/update.py --apply
+```
+
+The clone can be deleted afterwards. On Windows use `python` in place of `python3`.
+
 ### Watch Blender
 
 Start the server in Blender’s **N sidebar → BlenderMCP** using the [Blender MCP add-on](https://github.com/ahujasid/blender-mcp). Open **Blender** in Mainframe’s toolbar. It connects to the add-on on `127.0.0.1:9876`; **Connection** changes the port. For Blender on another machine, forward the add-on’s port first, for example `ssh -N -L 9877:127.0.0.1:9876 user@studio`, then enter `9877`.

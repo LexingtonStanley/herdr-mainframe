@@ -1,21 +1,24 @@
 // Mainframe help & options: a dialog, opened from the sidebar's footer (mainframe-chrome) or
-// `mod.open:mainframe-options`. Three pages, picked on the left:
+// `mod.open:mainframe-options`. Four pages, picked on the left (props.page opens one):
 //   Guide    what this layout adds to Herdr, a few lines each
 //   Keys     its keys, read from keys.json as they are now
 //   Options  this layout's own switches, saved in shared "mainframe.options" as they change
+//   Updates  a newer Mainframe on GitHub, and Update now (updates.js, update.py)
 // The sidebar's rows, the usage rows, the To-do panel and the Timeline are Over9k's: their options
 // stay in Over9k's own dialog, which the last row on the left opens.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, openOverlay, theme, shared, setShared, keys, fonts, window, layouts } from "herdr";
+import { props, closeOverlay, openOverlay, theme, shared, setShared, keys, fonts, window, layouts, notify, checking } from "herdr";
+import { UPDATE, check, apply, load, watch, running, ago } from "./updates.js";
 
 const NAME = "Mainframe";
 const TABS = "mainframe-tabs", GRID = "mainframe-grid", SIDE = "mainframe-side", CHROME = "mainframe-chrome";
 const OPTIONS = "mainframe.options";
-export const DEFAULTS = { toolbar: "auto", spaceColors: "theme", backdrop: true, tabFaces: true };
+export const DEFAULTS = { toolbar: "auto", spaceColors: "theme", backdrop: true, tabFaces: true, checkUpdates: true };
+const REPO = "github.com/LexingtonStanley/herdr-mainframe";
 const ICONS = "mods/workspace-chrome";
 
-const PAGES = [["guide", "Guide"], ["keys", "Keys"], ["options", "Options"]];
+const PAGES = [["guide", "Guide"], ["keys", "Keys"], ["options", "Options"], ["updates", "Updates"]];
 
 // The guide: [title, icon, lines]. Keys named in a line are looked up, so it says yours.
 // An icon that is a character's face is shown as the picture it is; the others take the accent.
@@ -77,10 +80,34 @@ const keyLabel = (k) => k.split(" ").map((chord) => chord.split("-").map((p) => 
 
 export default class Options extends View {
   init(_props, cx) {
-    this.page = "guide";
+    this.page = PAGES.some(([id]) => id === props()?.page) ? props().page : "guide";
     this.font = fonts().includes("Pixelify Sans") ? "Pixelify Sans" : null;
     this.h = cx.focus_handle();
     this.h.focus();
+    this.busy = null; // "check" while this dialog asks for a check
+    if (checking()) return;
+    // An update this dialog started goes on while Herdr reloads it: follow it again.
+    cx.spawn(async (cx) => {
+      const s = await load();
+      if (running(s)) await this.follow(cx);
+      else if (this.page === "updates") await this.checkIfStale(cx);
+      cx.notify();
+    });
+  }
+
+  // The Updates page looks again if the last look is over ten minutes old.
+  async checkIfStale(cx) {
+    const s = shared(UPDATE);
+    if (this.busy || running(s) || (s?.checked && Date.now() - s.checked < 10 * 60 * 1000)) return;
+    this.busy = "check"; cx.notify();
+    await check();
+    this.busy = null; cx.notify();
+  }
+  async follow(cx) {
+    const s = await watch(cx, () => cx.notify());
+    if (s.state === "idle" && s.updated && Date.now() - s.updated < 5 * 60 * 1000)
+      notify({ title: "Mainframe updated", body: "Already running: no restart needed.", level: "success" });
+    cx.notify();
   }
 
   options() { return { ...DEFAULTS, ...(shared(OPTIONS) ?? {}) }; }
@@ -145,6 +172,7 @@ export default class Options extends View {
         pick("spaceColors", [["theme", "Theme"], ["vivid", "Vivid"]])))
       .child(item("Characters on tabs", "A tab that is one agent shows that agent's character in place of the program's icon.", flip("tabFaces")))
       .child(item("Skyline in the Grid", "The quiet row of buildings behind the towers.", flip("backdrop")))
+      .child(item("Check for updates", `Every six hours, from ${REPO}. A newer version shows on the footer's help & options row; it is only installed when you press Update now.`, flip("checkUpdates")))
       .child(h_flex().pt(14).gap(10).items_center()
         .child(div().flex_1().min_w(0).text_size(11.5).line_height("16px").text_color(t.dim)
           .child("What the sidebar's rows show, the usage rows, the To-do panel and the Timeline are Over9k's, with options of their own."))
@@ -154,14 +182,57 @@ export default class Options extends View {
           .child(svg(`${ICONS}/settings.svg`).size(13)).child("Over9k options")));
   }
 
+  updatesPage(t) {
+    const s = shared(UPDATE) ?? {}, updating = running(s), behind = s.behind ?? 0;
+    const button = (id, label, solid, action) => h_flex().id(id).h(28).px(12).flex_none().items_center().rounded(7).text_size(12)
+      .when(solid, (el) => el.bg(t.solid).text_color(t.solid_foreground))
+      .when(!solid, (el) => el.border(1).border_color(t.border).text_color(t.muted))
+      .when(Boolean(action), (el) => el.cursor_pointer().hover((st) => st.opacity(0.88)).on_click(action))
+      .when(!action, (el) => el.opacity(0.6)).child(label);
+    const short = (sha) => (sha ? sha.slice(0, 7) : "unknown");
+    const title = updating ? "Installing the new version\u2026"
+      : this.busy === "check" ? "Looking for a newer version\u2026"
+      : s.state === "error" ? "Couldn't finish"
+      : behind > 0 ? `Update available \u00b7 ${behind} change${behind === 1 ? "" : "s"}`
+      : s.latest ? "Mainframe is up to date" : "Not checked yet";
+    const log = (s.log ?? []).slice(0, 12), more = behind - log.length;
+    const card = v_flex().p(14).gap(6).rounded(9).border(1)
+      .border_color(behind > 0 && !updating ? t.accent + "66" : t.border).bg(behind > 0 && !updating ? t.accent + "14" : t.raised)
+      .child(h_flex().gap(10).items_center()
+        .child(div().flex_1().min_w(0).text_size(14).font_semibold().text_color(t.foreground).child(title))
+        .when(behind > 0 && !updating && s.state !== "error", (el) => el.child(button("update-now", "Update now", true,
+          this.busy ? null : (_e, cx) => { setShared(UPDATE, { ...s, state: "updating", started: Date.now(), message: null }); cx.notify();
+            cx.spawn(async (cx) => { const r = await apply(); if (running(r)) await this.follow(cx); cx.notify(); }); }))))
+      .children(updating || s.state === "error" ? [] : log.map((line, i) => h_flex().id(`log-${i}`).gap(7).text_size(12).text_color(t.muted)
+        .child(div().flex_none().text_color(t.dim).child("\u2022")).child(div().flex_1().min_w(0).truncate().child(line))))
+      .when(!updating && s.state !== "error" && more > 0, (el) => el.child(div().pl(14).text_size(11.5).text_color(t.dim).child(`and ${more} more`)))
+      .when(s.state === "error" && Boolean(s.message), (el) => el.child(div().text_size(12).line_height("17px").text_color(t.ansi1).child(s.message)))
+      .when(s.state !== "error" && Boolean(s.message), (el) => el.child(div().text_size(12).line_height("17px").text_color(t.muted).child(s.message)));
+    const fact = (label, value) => h_flex().h(26).gap(10).items_center().text_size(12.5)
+      .child(div().w(120).flex_none().text_color(t.dim).child(label)).child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(value));
+    return v_flex().gap(12)
+      .child(card)
+      .child(v_flex()
+        .child(fact("Installed", s.installed ? `${short(s.installed)}${s.inferred ? "  (going by its files: no update has run here yet)" : ""}` : "unknown until the first check"))
+        .child(fact("Newest", s.latest ? short(s.latest) : "unknown"))
+        .child(h_flex().gap(10).items_center()
+          .child(div().flex_1().child(fact("Last checked", ago(s.checked))))
+          .child(button("check-now", this.busy === "check" ? "Checking\u2026" : "Check now", false,
+            this.busy || updating ? null : (_e, cx) => { this.busy = "check"; cx.notify(); cx.spawn(async (cx) => { await check(); this.busy = null; cx.notify(); }); }))))
+      .child(div().text_size(11.5).line_height("17px").text_color(t.dim)
+        .child(`Updates come from ${REPO}. Update now replaces only Mainframe's own files, and keeps your layout edits, keys and options. A Mainframe file you changed yourself stops the update and is named here. Everything it replaces is copied to data/mainframe-update/backups in Herdr's folder first. Needs git and Python 3.`));
+  }
+
   render() {
     const t = theme(), overlay = props()?.overlay;
     const close = () => closeOverlay(overlay);
     const nav = (id, label) => div().id(`nav-${id}`).h(30).px(10).rounded(7).flex().items_center().cursor_pointer().text_size(13)
       .bg(this.page === id ? t.selected : t.chrome).text_color(this.page === id ? t.foreground : t.muted)
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
-      .on_click((_e, cx) => { this.page = id; cx.notify(); }).child(label);
-    const body = this.page === "keys" ? this.keysPage(t) : this.page === "options" ? this.optionsPage(t) : this.guide(t);
+      .on_click((_e, cx) => { this.page = id; cx.notify(); if (id === "updates" && !checking()) cx.spawn((cx) => this.checkIfStale(cx)); })
+      .child(label)
+      .when(id === "updates" && (shared(UPDATE)?.behind ?? 0) > 0, (el) => el.child(div().ml_auto().size(6).rounded_full().bg(t.accent)));
+    const body = this.page === "keys" ? this.keysPage(t) : this.page === "options" ? this.optionsPage(t) : this.page === "updates" ? this.updatesPage(t) : this.guide(t);
     return h_flex().size_full().bg(t.popover).text_color(t.foreground).track_focus(this.h)
       .on_key_down((e, cx) => { if (e.key === "escape") { close(); cx.stop_propagation(); } })
       // The navigator.
@@ -179,7 +250,7 @@ export default class Options extends View {
       // The page.
       .child(v_flex().flex_1().min_w(0).h_full()
         .child(h_flex().h(46).flex_none().px(18).items_center().border_b(1).border_color(t.border)
-          .child(div().flex_1().text_size(14).font_semibold().child(`${NAME} ${this.page === "guide" ? "guide" : this.page === "keys" ? "keys" : "options"}`))
+          .child(div().flex_1().text_size(14).font_semibold().child(`${NAME} ${this.page}`))
           .child(div().id("close").size(26).flex_none().rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(t.muted)
             .hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(close).child(svg("mods/pane/close.svg").size(13))))
         .child(div().id("page").flex_1().min_h(0).overflow_y_scrollbar().child(div().px(18).py(14).child(body))));

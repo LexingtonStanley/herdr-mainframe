@@ -1,11 +1,14 @@
 // Mainframe's chrome: the brand row at the top of the sidebar (the layout's mark and name, the
 // space picker, the sidebar's fold) and, with props { footer: true }, the sidebar's last rows:
-// Settings, Mainframe help & options, Add machine.
-// After Herdr's workspace-chrome, by way of Over9k's over9k-footer (MIT; see LICENSES.md), without
-// Over9k's update check. Icons are Herdr's own (mods/workspace-chrome), which every install has.
+// Settings, Mainframe help & options, Add machine. The footer also looks for a newer Mainframe every
+// six hours while the option is on (updates.js, a copy of mainframe-options' own); one waiting puts
+// an Update tag on the help & options row, which then opens the dialog's Updates page.
+// After Herdr's workspace-chrome, by way of Over9k's over9k-footer (MIT; see LICENSES.md). Icons
+// are Herdr's own (mods/workspace-chrome), which every install has.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { theme, run, props, window, shared, setShared, updates, layout, openOverlay, fonts } from "herdr";
+import { theme, run, props, window, shared, setShared, updates, layout, openOverlay, fonts, checking } from "herdr";
+import { UPDATE, EVERY, check, load, running } from "./updates.js";
 
 const MOD = "mainframe-chrome", OPTIONS_MOD = "mainframe-options", NAME = "Mainframe";
 const ICONS = "mods/workspace-chrome";
@@ -27,12 +30,24 @@ function toggleSidebar() {
   setShared("sidebar.collapsed", !narrow()); // the sidebar's mods read the flag too
   run("layout.resize", { id: "sidebar", px: narrow() ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 76 : 44 });
 }
-export const openOptions = () => openOverlay({ mod: OPTIONS_MOD, kind: "dialog", width: 740, height: 580 });
+export const openOptions = (page) => openOverlay({ mod: OPTIONS_MOD, kind: "dialog", width: 740, height: 580, props: page ? { page } : {} });
+const updateWaiting = () => (shared(UPDATE)?.behind ?? 0) > 0 && !running(shared(UPDATE));
 
 export default class Chrome extends View {
-  init() {
+  init(_props, cx) {
     // The Grid's pixel font (it comes with the layout), for the name.
     this.font = fonts().includes("Pixelify Sans") ? "Pixelify Sans" : null;
+    if (!props()?.footer || checking()) return;
+    // Updates: what the last look found, then a look whenever the last one is six hours old.
+    const due = () => (shared("mainframe.options")?.checkUpdates ?? true) !== false && !running(shared(UPDATE))
+      && Date.now() - (shared(UPDATE)?.checked ?? 0) > EVERY;
+    cx.spawn(async (cx) => {
+      await load();
+      await cx.sleep(20000); // not while Herdr is starting
+      if (due()) await check();
+      cx.notify();
+    });
+    cx.timer.every(15 * 60 * 1000, (cx) => { if (due()) cx.spawn(async (cx) => { await check(); cx.notify(); }); });
   }
   button(id, label, tip, action) {
     const t = theme();
@@ -50,7 +65,10 @@ export default class Chrome extends View {
       return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(8).text_size(13)
         .child(row("settings", "settings", "Settings", false, () => run("app.settings"))
           .when(Boolean(updates()?.app?.ready), (el) => el.child(div().size(6).rounded_full().bg(t.accent))))
-        .child(row("options", "panel-left", `${NAME} help & options`, false, openOptions))
+        .child(row("options", "panel-left", `${NAME} help & options`, false, () => openOptions(updateWaiting() ? "updates" : null))
+          .when(updateWaiting(), (el) => el.when(!collapsed, (el) => el.child(div().ml_auto().flex_none().px(5).py(1).rounded(4)
+            .bg(t.accent + "26").text_size(10.5).text_color(t.accent).child("Update")))
+            .when(collapsed, (el) => el.child(div().size(6).rounded_full().bg(t.accent)).tooltip(`${NAME} help & options \u00b7 update available`))))
         .child(row("machine", "plus", "Add machine", true, () => run("mod.open", { name: "machine-add" })));
     }
     return h_flex().size_full().bg(t.chrome).pl(collapsed ? 6 : 14).pr(10).gap(4).items_center().text_size(13.5)
