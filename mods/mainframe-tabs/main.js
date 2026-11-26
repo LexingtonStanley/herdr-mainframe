@@ -389,10 +389,15 @@ export default class Tabs extends View {
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
-      // The tabs keep at least 150px; narrower than its icons, the tools' strip scrolls instead.
-      .child(h_flex().id("tab-scroll").flex_1().min_w(150).h_full().items_center().gap(3).overflow_x_scrollbar().children(shown.map(item)))
-      .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })).tooltip(`New terminal or agent${keyHint("tab.new")}`))
-      .child(h_flex().id("tools").flex_shrink(1).min_w(0).h_full().gap(3).items_center().overflow_x_scrollbar()
+      // The tabs, with + after the last, take what the tools leave (at least 150px) and scroll
+      // when they don't fit; the tools sit at the right. A scroll area (overflow_x_scrollbar)
+      // fills all the width its parent has, so each sits in a box sized by flex: the tabs' grows,
+      // the tools' is its icons' width and gives way only when the window is narrower than that.
+      // (Before, the tools' scroll area took the whole bar and left the tabs 150px: issue #1.)
+      .child(div().id("tab-zone").flex_1().min_w(150).h_full().overflow_hidden()
+        .child(h_flex().id("tab-scroll").size_full().items_center().gap(3).overflow_x_scrollbar().children(shown.map(item))
+          .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })).tooltip(`New terminal or agent${keyHint("tab.new")}`))))
+      .child(h_flex().id("tools").flex_shrink(1).min_w(0).overflow_hidden().h_full().gap(3).items_center()
         .children(groups.flatMap((g, i) => [rule(), ...g.map(b => toolButton(b, i >= groups.length - level))])))
       .when(Boolean(w?.buttons), el => el.child(rule()))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/mainframe-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))

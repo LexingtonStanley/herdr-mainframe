@@ -1,25 +1,32 @@
 // Mainframe Grid: every agent on one screen, as a night city. Each computer is a tower, each
 // space a room in it, each agent its character (cast.js) standing in its room with what it
-// is doing: status, model, effort, context used, task. Click an agent to go to it; right-click
-// to give it another character. Esc, the Back button or the key (mainframe-grid.toggle) returns.
+// is doing: status, model, effort, context used, task. A screen to stay on: click an agent and
+// its session opens in the dock beside the towers, a live terminal to type in; double-click goes
+// to it at the desk. Right-click gives it another character. Esc closes the dock, then returns
+// to the desk, as do the Back button and the key (mainframe-grid.toggle).
 // With the keyboard: arrows pick an agent (left/right the next one, up/down the next room),
-// Enter goes to it, C changes its character.
+// Enter opens it in the dock to type in, Space opens it there and stays on the towers,
+// Shift+Enter goes to it at the desk, C changes its character.
+// Agents an agent started (on this computer or another) are its family: they share a colour,
+// say who started them, and light up together when one is picked, hovered or open.
 //
 // Every colour is the theme's (skin, below): the Grid is the desk's other screen, not another
 // product. Only the characters keep their own colours: they are pictures.
 //
-// One mod, five views, picked by the layout with props.view:
+// One mod, six views, picked by the layout with props.view:
 //   "bar"    the strip across the top (a window_drag block): title, counts, Back, window buttons
 //   "scene"  the towers
+//   "dock"   the header over the dock's terminal: who it is, its family, Open at desk, close
 //   "keys"   nothing to see: a 0px block that is always shown, so the key works on both screens
 //            (a mod only gets its key commands while shown)
 //   "picker" the character picker (a dialog this mod opens)
 //   "blank"  an empty block (see init)
-// The layout's root holds a stack "deck" with two children: "desktop" (Over9k) and "grid".
+// The layout's root holds a stack "deck" with two children: "desktop" (Over9k) and "grid". The
+// grid is the bar over a row: the scene, and the dock (DOCK, below).
 // Model, effort and context come from the sidebar (mainframe-side shares "mainframe.info").
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { agents, spaces, machines, theme, run, shared, layout, props, nextCommand, checking, exec, window, openOverlay, closeOverlay, focused, fonts, home, settings } from "herdr";
+import { agents, spaces, machines, terminals, theme, run, shared, setShared, layout, props, nextCommand, checking, exec, readTextFile, writeTextFile, appHome, window, openOverlay, closeOverlay, focused, fonts, home, settings } from "herdr";
 import { casting, recast, face, body, ROSTER } from "./cast.js";
 import { agentTask } from "./agent-name.js";
 
@@ -88,6 +95,91 @@ function goTo(a, active) {
   run("tab.select", { id: a.tab });
   run("pane.focus", { pane: a.pane });
 }
+
+// The dock: a column beside the scene ("grid-dock") with a header (this mod, view "dock") over a
+// terminal block ("grid-term"): an agent's session, live, typed in as at the desk. The desk behind
+// the Grid stays where it was. Which agent is shared ("mainframe.dock") so the header and the
+// scene agree. A layout from before the dock: a click goes to the agent at the desk, as it used to.
+const DOCK = "grid-dock", DOCK_TERM = "grid-term", DOCKED = "mainframe.dock";
+const hasDock = () => Boolean(find(layout(), DOCK));
+const dockOpen = () => { const d = find(layout(), DOCK); return Boolean(d && !d.hidden); };
+const docked = () => (dockOpen() ? shared(DOCKED) ?? null : null);
+// Puts `address` in the dock's terminal block. A block names its terminal, so this writes it into
+// the layout's file (only that block's content changes; Herdr reloads the layout and keeps your
+// clicks). Not layout.set: Herdr refuses a tree nested as deep as this layout. False when the
+// layout has no such block.
+// A write that finds the file changed since it was read (two quick clicks) reads it again, once.
+async function dockTerminal(address, again = true) {
+  if (find(layout(), DOCK_TERM)?.content?.terminal === address) return true; // showing it already
+  const name = shared("layout"), path = name ? `${appHome()}/layouts/${name}.json` : null;
+  const text = path ? await readTextFile(path) : null;
+  let tree = null;
+  try { tree = text ? JSON.parse(text) : null; } catch {}
+  const term = tree && find(tree, DOCK_TERM);
+  if (!term) return false;
+  if (term.content?.terminal === address) return true;
+  term.content = { terminal: address };
+  try { await writeTextFile(path, `${JSON.stringify(tree, null, 2)}\n`, text); } catch (e) { if (again) return dockTerminal(address, false); throw e; }
+  return true;
+}
+// `keyboard`: typing goes to it. pane.focus {terminal} picks a shown terminal block over the
+// desk's pane, so it waits until the dock shows it: asked sooner it would focus the desk's pane
+// behind the Grid, where typing can't be seen. Not there within a second: the keyboard stays put.
+function openDock(address, keyboard, cx) {
+  setShared(DOCKED, address);
+  cx.spawn(async (cx) => {
+    // No terminal block to set (a layout whose dock has an agent block): agent.focus picks for it.
+    const block = await dockTerminal(address).catch(() => false);
+    if (!block) run("agent.focus", { terminal: address });
+    run("layout.show", { id: DOCK });
+    for (let i = 0; keyboard && block && i < 20; i++) {
+      if (dockOpen() && find(layout(), DOCK_TERM)?.content?.terminal === address) { await cx.sleep(40); run("pane.focus", { terminal: address }); break; }
+      await cx.sleep(50);
+    }
+    cx.notify();
+  });
+}
+const closeDock = () => run("layout.hide", { id: DOCK });
+
+// Who started whom. Herdr's core records the terminal an agent was started from (hc run: an
+// agent's helpers and the agents it hands work to), on this computer or another: terminals()'
+// `parent`. Only agents count, not an agent's dev server or watcher. An agent with all it started,
+// and theirs, is a family, with a colour of its own (the theme's, in a fixed order, so it stays put).
+// Started agents mostly have no pane (they aren't in agents() or the towers): they show on their
+// parent's station and in the dock's header, from where they open in the dock like any other.
+const isAgentTerm = (k) => Boolean(k?.agent || k?.program?.agent);
+function families(t) {
+  const live = terminals().filter((k) => k.state === "live");
+  const by = new Map(live.map((k) => [k.address, k]));
+  const parent = new Map(), kids = new Map();
+  for (const k of live) {
+    if (!k.parent || !by.has(k.parent) || !isAgentTerm(k)) continue;
+    parent.set(k.address, k.parent);
+    kids.set(k.parent, [...(kids.get(k.parent) ?? []), k]);
+  }
+  const rootOf = (a) => { let r = a; for (let i = 0; i < 16 && parent.has(r); i++) r = parent.get(r); return r; };
+  const roots = [...new Set([...parent.keys()].map(rootOf))].sort();
+  const hues = [t.ansi5, t.ansi6, t.ansi3, t.ansi4, t.ansi2, t.ansi13, t.ansi14, t.ansi11].filter(Boolean);
+  const inFamily = (a) => parent.has(a) || kids.has(a);
+  const colorOf = (a) => (inFamily(a) && hues.length ? hues[roots.indexOf(rootOf(a)) % hues.length] : null);
+  // Everyone in `a`'s family: from its root down.
+  const members = (a) => {
+    const out = new Set();
+    if (!a || !inFamily(a)) return out;
+    const walk = (x, depth) => { out.add(x); if (depth < 16) for (const k of kids.get(x) ?? []) walk(k.address, depth + 1); };
+    walk(rootOf(a), 0);
+    return out;
+  };
+  return { by, parent, kids, colorOf, members };
+}
+// A terminal as people know it: its agent's tab name or task (nameOf), else the name it was
+// started with, else its program.
+function termName(k, a, tabs) {
+  if (a) return nameOf(a, tabs.get(a.tab));
+  return k?.name || k?.program?.name || k?.agent || k?.address || "?";
+}
+// "lexbox" for a terminal on another computer, null here.
+const machineOf = (address) => (String(address ?? "").includes("/") ? String(address).split("/")[0] : null);
 // "3m", "2h", "1d" since a time (ms), or null.
 function ago(at) {
   if (!at) return null;
@@ -107,6 +199,8 @@ function tilde(folder, home) {
   return d.replace(/^\/(home|Users)\/[^/]+/, "~");
 }
 const WORD = { working: "WORKING", blocked: "NEEDS YOU", done: "DONE", idle: "IDLE" };
+// A terminal's status (terminals(): a plain word, or an older core's report).
+const statusOf = (k) => (typeof k?.status === "string" ? k.status : k?.status?.state ?? "idle");
 const statusColor = (s, t) => (s === "working" ? t.working : s === "blocked" ? t.blocked : s === "done" ? t.done ?? t.accent : t.idle ?? C.faint);
 
 // Rooms onto floors, `cols` stations across: wide rooms first, each on the first floor with
@@ -158,6 +252,7 @@ export default class Grid extends View {
     this.size = null;
     this.host = null;
     this.sel = null; // the agent the keyboard has picked (its address), in the scene
+    this.hover = null; // the agent under the pointer, in the scene: its family lights up
     this.order = []; this.roomStarts = []; // the agents as drawn, and where each room starts
     this.scroll = null; this.reveal = false; // the scene's scroll, and "bring the pick into view"
     this.font = fonts().includes("Pixelify Sans") ? "Pixelify Sans" : null;
@@ -165,12 +260,15 @@ export default class Grid extends View {
     if (this.view === "scene" || this.view === "picker") this.h = cx.focus_handle();
     if (this.view === "scene") this.scroll = ScrollHandle.new();
     if (checking()) return;
-    if (this.view === "scene") {
-      // This computer's name for its tower's sign (Herdr calls it null).
-      cx.spawn(async (cx) => { try { this.host = (await exec("hostname", [])).stdout.trim() || null; } catch {} cx.notify(); });
-      cx.timer.every(30000, (cx) => { if (showing() === "grid") cx.notify(); }); // "3m" ages
-    }
+    // This computer's name for its tower's sign and the dock's header (Herdr calls it null).
+    if (this.view === "scene" || this.view === "dock") cx.spawn(async (cx) => { try { this.host = (await exec("hostname", [])).stdout.trim() || null; } catch {} cx.notify(); });
+    if (this.view === "scene") cx.timer.every(30000, (cx) => { if (showing() === "grid") cx.notify(); }); // "3m" ages
     if (this.view === "bar") cx.timer.every(20000, (cx) => { if (showing() === "grid") cx.notify(); }); // the clock
+    if (this.view === "dock") {
+      cx.timer.every(30000, (cx) => { if (showing() === "grid") cx.notify(); }); // "3m" ages
+      // After a restart the dock's block is the file's again: the one open goes back in it.
+      if (dockOpen() && shared(DOCKED)) dockTerminal(shared(DOCKED)).catch(() => null);
+    }
     if (this.view === "picker") { this.h.focus(); return; }
     cx.spawn(async (cx) => {
       for (;;) {
@@ -203,12 +301,24 @@ export default class Grid extends View {
   pick(address) {
     openOverlay({ mod: MOD, kind: "dialog", width: 480, height: 452, props: { view: "picker", agent: address } });
   }
-  // The keyboard in the scene: arrows move the pick, Enter goes, C recasts, Esc leaves.
+  // A click on an agent: its session in the dock, to type in; a double-click goes to it at the desk.
+  // Without a dock in the layout, a click goes to the desk.
+  open(a, e, cx) {
+    this.sel = a.address;
+    if (!hasDock() || e?.click_count >= 2) return goTo(a, spaces().find((s) => s.active)?.id ?? null);
+    openDock(a.address, true, cx);
+  }
+  // The keyboard in the scene: arrows move the pick, Enter opens it in the dock to type in, Space
+  // opens it and stays here, Shift+Enter goes to it at the desk, C recasts. Esc closes the dock,
+  // then leaves.
   key(e, cx) {
     // The whole chord (e.keystroke): Ctrl+C and the like are not ours and go on their way.
     const k = e.keystroke ?? e.key, order = this.order, at = order.indexOf(this.sel);
     const to = (i) => { if (order.length) { this.sel = order[(i + order.length) % order.length]; this.reveal = true; cx.notify(); } };
-    if (k === "escape") show("desktop");
+    const picked = () => (at >= 0 ? agents().find((x) => x.address === this.sel) : null);
+    if (k === "escape") { if (dockOpen()) closeDock(); else show("desktop"); }
+    else if ((k === "enter" || k === "space") && hasDock() && picked()) openDock(this.sel, k === "enter", cx);
+    else if (k === "shift-enter" && picked()) goTo(picked(), spaces().find((s) => s.active)?.id ?? null);
     else if (k === "right" || k === "tab") to(at + 1);
     else if (k === "left" || k === "shift-tab") to(at < 0 ? 0 : at - 1);
     else if (k === "down" || k === "up") {
@@ -281,8 +391,17 @@ export default class Grid extends View {
     const since = st === "working" ? ago(tab?.working_since) : ago(i.lastAt);
     const model = [i.model, i.effort === "medium" ? "med" : i.effort].filter(Boolean).join(" · ") || a.program?.name || "";
     // `here`: the agent the desk is on (the focused one, not every agent of a split tab).
-    // `picked`: the keyboard's pick in this screen.
+    // `picked`: the keyboard's pick in this screen. `open`: its session is in the dock.
+    // `lit`: in the family of the agent hovered, picked or open (ctx.lit).
     const here = a.focused && a.space === ctx.active && Boolean(tab?.active), picked = this.sel === a.address;
+    const open = ctx.docked === a.address, link = ctx.fam.colorOf(a.address), lit = Boolean(link) && ctx.lit.has(a.address);
+    // Its family: who started it, and the agents it started (most have no station of their own).
+    const from = ctx.fam.parent.get(a.address), kids = ctx.fam.kids.get(a.address) ?? [];
+    const fromAgent = from ? ctx.ag.find((x) => x.address === from) : null;
+    const fromName = from ? termName(ctx.fam.by.get(from), fromAgent, ctx.tabs) : null;
+    // Its own subagents (Claude's Agent tool and the like): the sidebar shares them as `inner`
+    // (an older one only as the count `subs`, which also counts the agents above).
+    const inner = Array.isArray(i.inner) ? i.inner : null, innerN = inner ? inner.length : kids.length ? 0 : i.subs ?? 0;
     ctx.order.push(a.address);
     const boxH = STATION_H - 12, top = boxH - 8 - SPRITE_H; // the sprite's feet rest 8px above the box's floor
     const sprite = div().relative().flex_none().w(SPRITE_W + 10).h(boxH)
@@ -303,22 +422,40 @@ export default class Grid extends View {
         .child(div().flex_none().size(6).rounded(3).bg(color))
         .child(div().flex_none().font_semibold().text_color(idle ? C.dim : color).child(WORD[st] ?? st))
         .when(Boolean(since), (el) => el.child(div().flex_none().text_color(C.faint).child(since)))
-        .when(i.subs > 0, (el) => el.child(div().flex_none().px(4).rounded(3).bg(fade(C.second, 0.16)).text_color(C.second).tooltip(`${i.subs} sub-agent${i.subs === 1 ? "" : "s"}`).child(`+${i.subs}`))))
+        .when(innerN > 0, (el) => el.child(div().flex_none().px(4).rounded(3).bg(fade(C.second, 0.16)).text_color(C.second)
+          .tooltip(`${innerN} sub-agent${innerN === 1 ? "" : "s"}${inner?.length ? `:\n${inner.map((x) => x.desc || x.type || "sub-agent").join("\n")}` : ""}`).child(`+${innerN}`))))
       .child(div().min_w(0).truncate().text_size(12 + up).text_color(C.dim).child(model))
       .when(pct != null, (el) => el.child(h_flex().gap(6).items_center()
         .child(div().relative().flex_1().h(4).rounded(2).bg(C.line)
           .when(pct > 0, (bar) => bar.child(div().absolute().left(0).top(0).h(4).rounded(2).bg(pctColor).w(`${pct}%`))))
         .child(div().flex_none().w(30 + up * 3).text_size(11 + up).text_color(pctColor).child(`${pct}%`))))
-      .when(Boolean(task) && task !== name, (el) => el.child(div().min_w(0).truncate().text_size(12 + up).text_color(C.dim).child(task)));
-    const tip = [`${name}  ·  ${who.name}`, a.program?.name, model, pct != null ? `context ${pct}% used` : null, task && task !== name ? task : null,
-      "Click: go to it  ·  Right-click: change its character"].filter(Boolean).join("\n");
-    return h_flex().id(`st-${a.address}`).flex_1().min_w(STATION_W).max_w(STATION_W + 90).h(STATION_H).px(8).gap(8).items_center().rounded(8).cursor_pointer()
-      .border(1).border_color(picked ? C.accent : here ? fade(C.accent, 0.5) : st === "blocked" ? fade(t.blocked, 0.55) : fade(C.accent, 0))
-      .bg(picked ? fade(C.accent, 0.13) : here ? C.selected : st === "blocked" ? fade(t.blocked, 0.07) : fade(C.accent, 0))
+      // Its family, in its colour, in place of the task (the tooltip keeps that): "◂ FLARE" for
+      // who started it, and a dot per agent it started, in that one's status colour.
+      .when(Boolean(link), (el) => el.child(h_flex().min_w(0).gap(5).items_center().text_size(11 + up).text_color(link)
+        .when(Boolean(from), (row) => row.child(h_flex().min_w(0).gap(3).items_center()
+          .when(Boolean(fromAgent), (r) => r.child(image(face(ctx.cast.of(fromAgent))).size(13 + up).flex_none()))
+          .child(div().min_w(0).truncate().font_semibold().child(`◂ ${String(fromName).toUpperCase()}`))))
+        .when(kids.length > 0, (row) => row.child(h_flex().flex_none().gap(3).items_center()
+          .child(svg(`mods/${MOD}/family.svg`).size(11 + up).flex_none())
+          .child(div().font_semibold().child(String(kids.length)))
+          .children(kids.slice(0, 6).map((k) => div().flex_none().size(6).rounded(3).bg(statusColor(statusOf(k), t))))))))
+      .when(!link && Boolean(task) && task !== name, (el) => el.child(div().min_w(0).truncate().text_size(12 + up).text_color(C.dim).child(task)));
+    const family = [from ? `Started by ${fromName}${machineOf(from) !== machineOf(a.address) ? ` on ${machineOf(from) ?? (ctx.host ?? "this computer")}` : ""}` : null,
+      kids.length ? `Started ${kids.length}: ${kids.map((k) => termName(k, ctx.ag.find((x) => x.address === k.address), ctx.tabs)).join(", ")}` : null];
+    const tip = [`${name}  ·  ${who.name}`, a.program?.name, model, pct != null ? `context ${pct}% used` : null, task && task !== name ? task : null, ...family,
+      hasDock() ? "Click: open its session here  ·  Double-click: go to it  ·  Right-click: change its character" : "Click: go to it  ·  Right-click: change its character"].filter(Boolean).join("\n");
+    return h_flex().id(`st-${a.address}`).relative().flex_1().min_w(STATION_W).max_w(STATION_W + 90).h(STATION_H).px(8).gap(8).items_center().rounded(8).cursor_pointer()
+      .border(1).border_color(open || picked ? C.accent : lit ? fade(link, 0.75) : here ? fade(C.accent, 0.5) : st === "blocked" ? fade(t.blocked, 0.55) : fade(C.accent, 0))
+      .bg(open ? fade(C.accent, 0.16) : picked ? fade(C.accent, 0.13) : lit ? fade(link, 0.1) : here ? C.selected : st === "blocked" ? fade(t.blocked, 0.07) : fade(C.accent, 0))
       .hover((s) => s.bg(C.hover))
       .tooltip(tip)
-      .on_click(() => goTo(a, ctx.active))
+      .on_hover((on, cx) => { if (on) this.hover = a.address; else if (this.hover === a.address) this.hover = null; cx.notify(); })
+      .on_click((e, cx) => this.open(a, e, cx))
       .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.pick(a.address); })
+      // A family's tether: a bar in its colour down the station's left edge.
+      .when(Boolean(link), (el) => el.child(div().absolute().left(2).top(12).bottom(12).w(3).rounded(2).bg(lit || open ? link : fade(link, 0.55))))
+      // Open in the dock: a tag at its top right, pointing there.
+      .when(open, (el) => el.child(div().absolute().right(6).top(5).px(5).rounded(3).bg(C.accent).text_color(C.on).text_size(9.5).font_bold().child("OPEN ▸")))
       .child(sprite).child(details);
   }
 
@@ -383,9 +520,12 @@ export default class Grid extends View {
 
   scene(t) {
     const ag = agents(), sp = spaces(), ms = machines();
+    const fam = families(t), dockedNow = docked();
     const ctx = { cast: casting(ag, sp), info: shared("mainframe.info") ?? {}, colors: shared("space.colors") ?? {},
       tabs: new Map(sp.flatMap((s) => s.tabs.map((x) => [x.id, x]))), active: sp.find((s) => s.active)?.id ?? null, home: this.homeDir ??= home(),
-      homes: shared("mainframe.homes") ?? {}, order: [], rooms: [] };
+      homes: shared("mainframe.homes") ?? {}, order: [], rooms: [], ag, fam, docked: dockedNow, host: this.host,
+      // The family that lights up: the hovered agent's, else the keyboard's pick's, else the open one's.
+      lit: fam.members(this.hover ?? this.sel ?? dockedNow) };
     const W = this.size?.width ?? 1200, H = this.size?.height ?? 700;
     // Towers: this computer first, then the others, each with the spaces that have agents.
     const names = [null, ...ms.map((m) => m.name).filter(Boolean)];
@@ -407,7 +547,9 @@ export default class Grid extends View {
     const street = div().w_full().h(STREET).flex_none().bg(C.bar).border_t(1).border_color(C.line)
       .child(h_flex().size_full().px(PAD).items_center().gap(14)
         .child(div().flex_1().h(1).bg(C.line))
-        .child(div().flex_none().text_size(11).text_color(C.dim).child("Click an agent to go to it  ·  right-click to change its character  ·  arrows and Enter work too")));
+        .child(div().flex_none().text_size(11).text_color(C.dim).child(hasDock()
+          ? "Click an agent to open its session here  ·  double-click to go to it  ·  right-click to change its character  ·  arrows, Enter and Space work too"
+          : "Click an agent to go to it  ·  right-click to change its character  ·  arrows and Enter work too")));
     // The scroll area's own children, top to bottom: a spring (short towers stand on the street
     // at the bottom), the towers, the street. Side by side, the towers are one row. Stacked (a
     // narrow window), every roof and floor is a child of its own, so the floor the keyboard's
@@ -432,6 +574,8 @@ export default class Grid extends View {
     }
     return div().id("grid-scene").relative().size_full().bg(C.ink).track_focus(this.h)
       .on_size_change((size, cx) => { this.size = size; cx.notify(); })
+      // A press anywhere here gives the towers the keyboard (back from the dock's terminal).
+      .on_mouse_down("left", () => this.h.focus())
       .on_key_down((e, cx) => this.key(e, cx))
       // The skyline, behind everything and out of the way of clicks' targets.
       .when(options().backdrop !== false, (el) => el.child(div().absolute().inset_0().overflow_hidden().children(this.skyline(W, H))))
@@ -495,12 +639,102 @@ export default class Grid extends View {
       .child(h_flex().flex_wrap().gap(6).children(ROSTER.map(tile)));
   }
 
+  // ── the dock's header: who is open in the dock, its family, Open at desk, close ─────────
+  // Two lines: the agent (character, name, status, model, context, where; whether the keyboard is
+  // in its terminal), then its family as chips (who started it and the others it started, the
+  // agents it started, its own subagents): a click opens that one in the dock.
+  dockHead(t) {
+    const addr = shared(DOCKED), fam = families(t), ag = agents(), sp = spaces();
+    const tabs = new Map(sp.flatMap((s) => s.tabs.map((x) => [x.id, x])));
+    const k = fam.by.get(addr), a = ag.find((x) => x.address === addr) ?? null;
+    const stop = (_e, cx) => cx.stop_propagation();
+    const frame = v_flex().size_full().px(12).py(6).gap(4).justify_center().bg(C.bar).rounded(10).border(1).border_color(C.border);
+    if (!k) {
+      // Its session ended: the dock closes (its block would go on to show some other agent).
+      if (addr && dockOpen() && this.closedFor !== addr) { this.closedFor = addr; closeDock(); }
+      return frame.child(div().text_size(12).text_color(C.dim).child(addr ? "That session has ended." : "Click an agent to open its session here."));
+    }
+    this.closedFor = null;
+    const cast = casting(ag, sp), info = (shared("mainframe.info") ?? {})[addr] ?? {};
+    const st = a?.status ?? statusOf(k), color = statusColor(st, t), name = termName(k, a, tabs);
+    const space = a ? sp.find((s) => s.id === a.space) : null, here = machineOf(addr) ?? this.host ?? "this computer";
+    const pct = info.context == null ? null : Math.max(0, Math.min(100, Math.round(info.context)));
+    const pctColor = pct >= 80 ? t.ansi1 : pct >= 50 ? t.ansi3 : t.ansi2;
+    const tab = a ? tabs.get(a.tab) : null, since = st === "working" ? ago(tab?.working_since) : ago(info.lastAt);
+    const model = [info.model, info.effort === "medium" ? "med" : info.effort].filter(Boolean).join(" · ") || k.program?.name || a?.program?.name || "";
+    // Its picture: its character, or (no pane, so no character) its program's icon.
+    const icon = (term, agent, px) => {
+      if (agent) return image(face(cast.of(agent))).size(px).flex_none();
+      const p = term?.program;
+      if (p?.icon) return p.tint ? svg(p.icon).size(px - 4).flex_none().text_color(C.dim) : image(p.icon).size(px - 4).flex_none();
+      return svg("icons/shell.svg").size(px - 4).flex_none().text_color(C.dim);
+    };
+    // Where the keyboard is: in this terminal (a layout block has the keyboard: no pane), or not.
+    const f = focused(), typing = Boolean(f && !f.pane && f.terminal === addr);
+    const button = (id, label, tip, action) => h_flex().id(id).h(24).px(8).gap(6).flex_none().items_center().rounded(6).cursor_pointer()
+      .border(1).border_color(C.border).text_size(11.5).text_color(C.dim).hover((s) => s.bg(C.hover).text_color(C.text))
+      .on_mouse_down("left", stop).on_click(action).tooltip(tip).child(label);
+    const desk = a
+      ? button("dock-desk", "Open at desk", "Go to it at the desk (double-click its station, or Shift+Enter)", () => goTo(a, sp.find((s) => s.active)?.id ?? null))
+      : button("dock-desk", "Peek at desk", "It has no pane: peek at it over the desk's tab", () => { show("desktop"); run("terminal.peek", { terminal: addr }); });
+    const line1 = h_flex().h(30).gap(10).items_center()
+      .child(icon(k, a, 28))
+      .child(v_flex().flex_1().min_w(0).gap(1)
+        .child(h_flex().min_w(0).gap(8).items_center()
+          .child(this.label(div(), 14).min_w(0).truncate().text_color(C.text).child(name))
+          .child(div().flex_none().size(6).rounded(3).bg(color))
+          .child(div().flex_none().text_size(11).font_semibold().text_color(st === "idle" ? C.dim : color).child(WORD[st] ?? st))
+          .when(Boolean(since), (el) => el.child(div().flex_none().text_size(11).text_color(C.faint).child(since))))
+        .child(h_flex().min_w(0).gap(6).items_center().text_size(11).text_color(C.dim)
+          .when(Boolean(model), (el) => el.child(div().flex_none().child(model)))
+          .when(pct != null, (el) => el.child(div().flex_none().text_color(pctColor).child(`${pct}%`)))
+          .child(div().min_w(0).truncate().text_color(C.faint).child([here.toUpperCase(), space?.name].filter(Boolean).join(" · ")))))
+      .child(div().flex_none().px(6).py(1).rounded(4).text_size(10).font_bold()
+        .bg(typing ? fade(C.accent, 0.16) : fade(C.accent, 0)).text_color(typing ? C.accent : C.faint)
+        .child(typing ? "TYPING HERE" : "CLICK TO TYPE"))
+      .child(desk)
+      .child(div().id("dock-close").flex_none().size(24).rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(C.dim)
+        .hover((s) => s.bg(C.hover).text_color(C.text)).on_mouse_down("left", stop).on_click(() => closeDock())
+        .tooltip("Close (Esc on the towers)").child(svg("mods/pane/close.svg").size(13)));
+    // The family: who started it (and the others it started), and the agents it started.
+    const link = fam.colorOf(addr) ?? C.second;
+    const chip = (term) => {
+      const ta = ag.find((x) => x.address === term.address) ?? null, ts = ta?.status ?? statusOf(term);
+      const away = machineOf(term.address) !== machineOf(addr);
+      return h_flex().id(`fam-${term.address}`).h(20).px(6).gap(5).flex_none().items_center().rounded(5).cursor_pointer()
+        .border(1).border_color(fade(link, 0.45)).bg(fade(link, 0.08)).hover((s) => s.bg(fade(link, 0.2)))
+        .on_mouse_down("left", stop).on_click((_e, cx) => openDock(term.address, true, cx))
+        .tooltip(`${termName(term, ta, tabs)}  ·  ${WORD[ts] ?? ts}${away ? `  ·  on ${machineOf(term.address) ?? this.host ?? "this computer"}` : ""}\nClick: open it here`)
+        .child(div().flex_none().size(6).rounded(3).bg(statusColor(ts, t)))
+        .child(icon(term, ta, 15))
+        .child(div().max_w(150).truncate().text_size(11).text_color(C.text).child(termName(term, ta, tabs)))
+        .when(away, (el) => el.child(div().flex_none().text_size(9.5).text_color(C.faint).child((machineOf(term.address) ?? this.host ?? "here").toUpperCase())));
+    };
+    const word = (s) => div().flex_none().text_size(10.5).text_color(C.faint).child(s);
+    const from = fam.parent.get(addr), kids = fam.kids.get(addr) ?? [];
+    const sibs = from ? (fam.kids.get(from) ?? []).filter((x) => x.address !== addr) : [];
+    const inner = Array.isArray(info.inner) ? info.inner : [];
+    const parts = [];
+    if (from) parts.push(word("STARTED BY"), chip(fam.by.get(from)));
+    if (sibs.length) parts.push(word("WITH"), ...sibs.map(chip));
+    if (kids.length) parts.push(word(from ? "· STARTED" : "STARTED"), ...kids.map(chip));
+    if (inner.length) parts.push(div().id("dock-inner").flex_none().h(20).px(6).rounded(5).flex().items_center().text_size(11)
+      .bg(fade(C.second, 0.12)).text_color(C.second).tooltip(inner.map((x) => x.desc || x.type || "sub-agent").join("\n"))
+      .child(`+${inner.length} sub-agent${inner.length === 1 ? "" : "s"}`));
+    const line2 = parts.length
+      ? div().h(22).min_w(0).child(h_flex().id("dock-family").size_full().gap(5).items_center().overflow_x_scrollbar().children(parts))
+      : h_flex().h(22).min_w(0).items_center().child(div().min_w(0).truncate().text_size(11).text_color(C.faint)
+        .child([tilde(k.cwd ?? "", (shared("mainframe.homes") ?? {})[machineOf(addr) ?? ""] ?? null), a ? agentTask(a, null) : null].filter(Boolean).join("  ·  ")));
+    return frame.child(line1).child(line2);
+  }
+
   render(_cx) {
     const t = theme();
     if (this.view === "keys" || this.view === "blank") return div();
     C = skin(t);
     if (this.view === "bar") return this.bar(t);
     if (this.view === "picker") return this.picker(t);
+    if (this.view === "dock") return this.dockHead(t);
     return this.scene(t);
   }
 }

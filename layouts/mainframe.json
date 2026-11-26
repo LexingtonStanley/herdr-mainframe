@@ -266,14 +266,75 @@
               }
             },
             {
-              "id": "grid-scene",
-              "type": "block",
-              "content": {
-                "mod": "mainframe-grid",
-                "props": {
-                  "view": "scene"
+              "id": "grid-body",
+              "type": "row",
+              "divider": {
+                "width": 1,
+                "color": "border",
+                "hover": "accent"
+              },
+              "children": [
+                {
+                  "id": "grid-scene",
+                  "type": "block",
+                  "content": {
+                    "mod": "mainframe-grid",
+                    "props": {
+                      "view": "scene"
+                    }
+                  }
+                },
+                {
+                  "id": "grid-dock",
+                  "type": "column",
+                  "size": {
+                    "px": 640
+                  },
+                  "min": 360,
+                  "max": 1400,
+                  "hidden": true,
+                  "padding": [
+                    8,
+                    8
+                  ],
+                  "gap": 6,
+                  "resizable": false,
+                  "children": [
+                    {
+                      "id": "grid-dock-head",
+                      "type": "block",
+                      "size": {
+                        "px": 66
+                      },
+                      "content": {
+                        "mod": "mainframe-grid",
+                        "props": {
+                          "view": "dock"
+                        }
+                      }
+                    },
+                    {
+                      "id": "grid-term",
+                      "type": "block",
+                      "content": {
+                        "agent": "focused"
+                      },
+                      "background": "background",
+                      "border": {
+                        "width": 1,
+                        "color": "border"
+                      },
+                      "radius": 10,
+                      "focus": {
+                        "border": {
+                          "width": 1,
+                          "color": "accent"
+                        }
+                      }
+                    }
+                  ]
                 }
-              }
+              ]
             }
           ]
         }

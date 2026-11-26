@@ -6,9 +6,10 @@ A [Herdr](https://herdr.dev) layout for running many coding agents on several co
 
 ## What's in it
 
-- **The Grid** (`Ctrl+Shift+Y`): one tower per computer, one room per space, one pixel character per agent, with status, model, context used and task. Click or use the arrows and Enter to go to an agent.
+- **The Grid** (`Ctrl+Shift+Y`): one tower per computer, one room per space, one pixel character per agent, with status, model, context used and task. A screen to stay on: click an agent and its session opens beside the towers as a live terminal you type in; double-click to go to it at the desk.
+- **Families:** agents that started other agents, on this computer or another, share a colour, say who started them, and light up together. Open one and the dock's header lists the rest; click one to open it there.
 - **44 characters.** Each agent gets one and keeps it, on its sidebar row, its tab and in the Grid.
-- **One bar for everything:** Asks, Files, Changes, To-do, Timeline, an agents graph, PR review and usage, in groups that shrink to icons when the tabs need room.
+- **One bar for everything:** Asks, Files, Changes, To-do, Timeline, an agents graph, PR review and usage, in groups at the right end that shrink to icons when the tabs need room.
 - **A sidebar that reads cleanly:** Over9k's, with rows that show what fits whole.
 - **Help & options** in the sidebar's footer: a guide, your keys, and four options.
 
