@@ -115,18 +115,39 @@ const VIEW = "mainframe.dock.view";
 const hasDock = () => Boolean(find(layout(), DOCK));
 const dockOpen = () => { const d = find(layout(), DOCK); return Boolean(d && !d.hidden); };
 const docked = () => (dockOpen() ? shared(DOCKED) ?? null : null);
+// The dock's terminal block as the layout ships it. Herdr takes a terminal block out of the layout
+// file when its terminal ends (only a block showing the focused agent stays), so after a docked
+// session ends the dock has no block until this one is put back: first in the display stack, or
+// after the dock's header in a layout from before the stack. Null when the dock isn't there.
+const DOCK_BLOCK = { id: DOCK_TERM, type: "block", content: { agent: "focused" }, background: "background",
+  border: { width: 1, color: "border" }, radius: 10, focus: { border: { width: 1, color: "accent" } } };
+function restoreDockBlock(tree) {
+  const display = find(tree, "grid-display"), dock = find(tree, DOCK), parent = display ?? dock;
+  if (!Array.isArray(parent?.children)) return null;
+  const block = JSON.parse(JSON.stringify(DOCK_BLOCK));
+  const at = display ? 0 : parent.children.findIndex((c) => c.id === "grid-dock-head") + 1;
+  parent.children.splice(at, 0, block);
+  return block;
+}
+// The dock's stack shows the terminal block, once there is one (asked for a child it doesn't have,
+// Herdr says so in a toast).
+function selectDockTerm() {
+  const l = layout(), display = find(l, "grid-display");
+  if (display && display.children?.some((c) => c.id === DOCK_TERM)) run("layout.select", { stack: "grid-display", child: DOCK_TERM });
+}
 // Puts `address` in the dock's terminal block. A block names its terminal, so this writes it into
 // the layout's file (only that block's content changes; Herdr reloads the layout and keeps your
 // clicks). Not layout.set: Herdr refuses a tree nested as deep as this layout. False when the
-// layout has no such block.
+// layout has no dock to put a block in.
 // A write that finds the file changed since it was read (two quick clicks) reads it again, once.
 async function dockTerminal(address, again = true) {
   const name = shared("layout"), path = name ? `${appHome()}/layouts/${name}.json` : null;
   const text = path ? await readTextFile(path) : null;
   let tree = null;
   try { tree = text ? JSON.parse(text) : null; } catch {}
-  const term = tree && find(tree, DOCK_TERM);
-  if (!term || shared(DOCKED) !== address) return false;
+  if (!tree || shared(DOCKED) !== address) return false;
+  const term = find(tree, DOCK_TERM) ?? restoreDockBlock(tree);
+  if (!term) return false;
   if (term.content?.terminal === address) return true;
   term.content = { terminal: address };
   try { await writeTextFile(path, `${JSON.stringify(tree, null, 2)}\n`, text); } catch (e) { if (again) return dockTerminal(address, false); throw e; }
@@ -138,16 +159,20 @@ async function dockTerminal(address, again = true) {
 function openDock(address, keyboard, cx) {
   setShared(DOCKED, address);
   setShared(VIEW, null);
-  if (find(layout(), "grid-display")) run("layout.select", { stack: "grid-display", child: DOCK_TERM });
+  selectDockTerm();
   cx.spawn(async (cx) => {
     // No terminal block to set (a layout whose dock has an agent block): agent.focus picks for it.
     const block = await dockTerminal(address).catch(() => false);
     if (shared(DOCKED) !== address || showing() !== "grid") return;
     if (!block) run("agent.focus", { terminal: address });
     run("layout.show", { id: DOCK });
-    for (let i = 0; keyboard && block && i < 20; i++) {
+    // Once Herdr has reloaded the file with the block showing this terminal: the stack shows it
+    // (it may have been put back just now), and with `keyboard` typing goes there.
+    for (let i = 0; block && i < 20; i++) {
       if (shared(DOCKED) !== address || showing() !== "grid") break;
       if (dockOpen() && find(layout(), DOCK_TERM)?.content?.terminal === address) {
+        selectDockTerm();
+        if (!keyboard) break;
         await cx.sleep(40);
         if (shared(DOCKED) === address && dockOpen() && showing() === "grid") run("pane.focus", { terminal: address });
         break;
