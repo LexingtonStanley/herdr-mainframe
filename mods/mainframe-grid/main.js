@@ -182,7 +182,13 @@ function openDock(address, keyboard, cx) {
     cx.notify();
   });
 }
-const closeDock = () => { run("layout.hide", { id: DOCK }); setShared(DOCKED, null); setShared(VIEW, null); };
+// Closing the dock hands the keyboard back to the towers. A click on an agent puts it in the dock's
+// terminal, and hiding the dock doesn't take it back: closed with its × (or when its session ended),
+// Esc and the arrows went to a terminal nobody could see instead of the Grid (issue #5).
+const closeDock = () => {
+  run("layout.hide", { id: DOCK }); setShared(DOCKED, null); setShared(VIEW, null);
+  if (showing() === "grid") run(`${MOD}.refocus`);
+};
 
 // Who started whom. Herdr's core records the terminal an agent was started from (hc run: an
 // agent's helpers and the agents it hands work to), on this computer or another: terminals()'
@@ -404,6 +410,10 @@ export default class Grid extends View {
           // The keyboard starts on the agent you came from.
           const all = agents();
           this.sel = (all.find((x) => x.focused) ?? all[0])?.address ?? null;
+          this.reveal = true;
+        } else if (this.view === "scene" && c === "refocus") {
+          // The dock closed (closeDock): the keyboard back on the towers, the pick where it was.
+          this.h.focus();
           this.reveal = true;
         } else if (this.view === "scene" && c.startsWith("jump-")) this.jump(c.slice(5), cx);
         else if (this.view === "scene" && (c === "dock-next" || c === "dock-prev")) this.step(c === "dock-next" ? 1 : -1, cx);
