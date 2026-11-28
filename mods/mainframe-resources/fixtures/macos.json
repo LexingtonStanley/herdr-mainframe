@@ -1,0 +1,9 @@
+{
+  "os": "Darwin", "hostname": "studio.local", "uptime": 68702,
+  "cpu": {"cores": 10, "percent": 12.41, "load": [1.89, 2.12, 2.35]},
+  "packageTemp": null, "sensors": [],
+  "memory": {"used": 21147451392, "total": 34359738368},
+  "swap": {"used": 268435456, "total": 1073741824},
+  "gpus": [{"name": "AGXAccelerator", "percent": 8}],
+  "drives": [{"mount": "/", "used": 10728062976, "total": 494384795648}, {"mount": "/Volumes/Video Work", "used": 212203896832, "total": 999860912128}]
+}

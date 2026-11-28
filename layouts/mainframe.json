@@ -217,6 +217,13 @@
                                   "panel": true
                                 }
                               }
+                            },
+                            {
+                              "id": "resources",
+                              "type": "block",
+                              "content": {
+                                "mod": "mainframe-resources"
+                              }
                             }
                           ],
                           "active": "files-browser"
@@ -349,7 +356,9 @@
                           "type": "block",
                           "content": {
                             "mod": "mainframe-grid",
-                            "props": { "view": "reader" }
+                            "props": {
+                              "view": "reader"
+                            }
                           }
                         }
                       ]

@@ -32,6 +32,8 @@ const EMERGENCE = [
   ["blender", "Blender", "mods/mainframe-blender/blender.svg", 510],
   ["prs", "PRs", "mods/mainframe-tabs/pr.svg", 860],
   ["usage-panel", "Usage", "mods/mainframe-tabs/usage.svg", 760],
+  // CPU, temperatures, memory, GPU and storage for each computer (mainframe-resources; issue #6).
+  ["resources", "Resources", "mods/mainframe-resources/resources.svg", 420],
 ];
 const WIDTH = { "files-browser": 368, files: 368, changes: 368, todos: 368, prompts: 368, asks: 368, ...Object.fromEntries(EMERGENCE.map(([id, , , px]) => [id, px])) };
 
@@ -371,8 +373,8 @@ export default class Tabs extends View {
         // Your prompts in the agent you're in, as a timeline (over9k-prompts).
         timelineOn ? side("prompts", "Timeline", "mods/over9k-prompts/timeline.svg", "Your prompts to this agent, in order") : null,
       ].filter(Boolean),
-      // Emergence's panels: the agents graph, PR review, usage.
-      EMERGENCE.filter(([id]) => find(body, id)).map(([id, label, icon]) => side(id, label, icon, `${{ graph: "Agents and their sub-agents, as a graph", blender: "Watch Blender's viewport, scene and MCP activity", prs: "Pull requests to review", "usage-panel": "Tokens and cost, by agent and day" }[id]}${keyHint(`${MOD}.${id}`)}`)),
+      // Emergence's panels: the agents graph, PR review, usage; and the computers' resources.
+      EMERGENCE.filter(([id]) => find(body, id)).map(([id, label, icon]) => side(id, label, icon, `${{ graph: "Agents and their sub-agents, as a graph", blender: "Watch Blender's viewport, scene and MCP activity", prs: "Pull requests to review", "usage-panel": "Tokens and cost, by agent and day", resources: "CPU, temperatures, memory, GPU and storage, for each computer" }[id]}${keyHint(`${MOD}.${id}`)}`)),
     ];
     // How many groups go down to icons (0: none; 1: the tools; 2: the panels too; 3: all), so
     // the tabs keep room: about 130px each, up to 60% of the bar.
