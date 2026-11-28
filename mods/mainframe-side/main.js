@@ -220,8 +220,12 @@ function linkChip(t, id, { dir, icon, color, to = null }) {
     .when(Boolean(to), (el) => el.child(svg("mods/workspace-chrome/server.svg").size(10).flex_none()));
 }
 
-// A row lit up while its other end is hovered (a row with a link chip there).
-const lit = (el, link) => (link ? el.bg(link.color + "26") : el);
+// A row lit up while its other end is hovered (a row with a link chip there). Only with a colour:
+// a link can end while its other row is hovered (an ssh closes, a helper moves into its agent's
+// space), and that row goes without a hover-leave, so the hover stays pointing at a link whose
+// colour is now null. "null26" isn't a colour: the render threw, and the sidebar kept showing
+// "This view could not be re-rendered" until another row was hovered. One cause of issue #4.
+const lit = (el, link) => (typeof link?.color === "string" && link.color ? el.bg(link.color + "26") : el);
 
 // The filter at the top of the list (filterBar): All, or Agents (every agent,
 // no plain terminals), with what an empty list says. Agents lists them by state
@@ -1769,7 +1773,9 @@ export default class Spaces extends View {
   // reported yet (Codex's update prompt) already goes by its agent name.
   termName(p, tab, key) {
     if (p.program?.agent) return agentName(p, tab, p.cwd);
-    if (!/^(\d+|t[0-9a-z]+)$/.test(tab.name) && tab.name !== p.program?.name) return tab.name;
+    // No tab: the pane's tab isn't in this render's spaces() yet or any more (spaces(), panes() and
+    // terminals() are separate reads, and a tab opens or closes between them; issue #4).
+    if (tab && !/^(\d+|t[0-9a-z]+)$/.test(tab.name) && tab.name !== p.program?.name) return tab.name;
     // Started straight on an ssh (no prompt to read): that command (findSsh).
     const command = this.lastCmd[p.terminal] ?? this.titleCommand(p.title, p.program?.name ?? "") ?? this.sshTo?.[p.terminal]?.cmd;
     if (command) return command.length > 48 ? `${command.slice(0, 47)}\u2026` : command;
