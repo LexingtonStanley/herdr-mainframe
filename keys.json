@@ -10,7 +10,8 @@
     "ctrl-shift-r": "mainframe-tabs.prs",
     "ctrl-shift-u": "mainframe-tabs.usage-panel",
     "ctrl-shift-y": "mainframe-grid.toggle",
-    "ctrl-shift-i": "mainframe-tabs.nvim"
+    "ctrl-shift-i": "mainframe-tabs.nvim",
+    "ctrl-shift-m": "mainframe-tabs.resources"
   },
   "mod:over9k-switcher": {
     "ctrl-shift-tab": "over9k-switcher.prev",

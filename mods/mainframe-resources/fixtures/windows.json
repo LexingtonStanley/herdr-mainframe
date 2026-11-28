@@ -1,0 +1,12 @@
+{
+  "os": "Windows", "hostname": "EDIT-01", "uptime": 192382,
+  "cpu": {"cores": 24, "percent": 31},
+  "memory": {"total": 68182605824, "used": 21508399104},
+  "swap": {"used": 178257920, "total": 8589934592},
+  "packageTemp": null, "sensors": [{"name": "ACPI\\ThermalZone\\TZ00_0", "celsius": 42.1}],
+  "gpus": [
+    {"name": "NVIDIA GeForce RTX 4070", "percent": 38, "vram": {"used": 1872756736, "total": 12878610432}, "temp": 56, "watts": 82.45},
+    {"name": "Intel(R) UHD Graphics 770", "percent": 0, "vram": {"used": 37748736, "total": null}}
+  ],
+  "drives": [{"mount": "C:", "total": 1024000000000, "used": 419064647680}, {"mount": "D:", "total": 2000398843904, "used": 129184563200}]
+}

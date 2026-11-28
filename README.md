@@ -9,8 +9,9 @@ A [Herdr](https://herdr.dev) layout for running many coding agents on several co
 - **The Grid** (`Ctrl+Shift+Y`): one tower per computer, one room per space, one pixel character per agent, with status, model, context used and task. A screen to stay on: click an agent and its session opens beside the towers as a live terminal you type in; double-click to go to it at the desk.
 - **Crew cards:** children without panes have their own places beside their parent, three to a bunk. Click a terminal-backed child to type to it, or a transcript-only child to read its task and recent messages. Click a status count to visit the next match; `?` shows the Grid controls.
 - **Blender** (`Ctrl+Shift+B`): watch the 3D viewport beside the terminal. Inspect objects, dimensions, geometry, materials and modifiers; see what changed between snapshots and, optionally, which MCP commands ran.
+- **Resources** (`Ctrl+Shift+M`): CPU with its recent history, temperatures, memory and swap, GPUs and drives, for this computer and every one it's connected to: Linux, macOS and Windows. It reads them only while it's open, using what each system already has (`nvidia-smi` too, if it's there).
 - **44 characters.** Each agent gets one and keeps it, on its sidebar row, its tab and in the Grid.
-- **One bar for everything:** Asks, Files, Changes, To-do, Timeline, an agents graph, PR review and usage, in groups at the right end that shrink to icons when the tabs need room.
+- **One bar for everything:** Asks, Files, Changes, To-do, Timeline, an agents graph, PR review, usage and resources, in groups at the right end that shrink to icons when the tabs need room.
 - **A sidebar that reads cleanly:** Over9k's, with rows that show what fits whole.
 - **Help & options** in the sidebar's footer: a guide, your keys, and four options.
 
