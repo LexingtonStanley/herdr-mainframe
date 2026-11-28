@@ -122,6 +122,8 @@ export default class Resources extends View {
       if (status !== "ready") {
         if (state.available !== false) this.reset(state);
         state.available = false;
+        // Another computer can come back as another system (a dual boot): ask again.
+        if (name !== null) state.os = null;
         continue;
       }
       state.available = true;
@@ -176,6 +178,7 @@ export default class Resources extends View {
       } catch (error) {
         if (current()) {
           state.failed = true;
+          if (name !== null) state.os = null; // asked again next time (it may have changed)
           state.errorUntil = Date.now() + 6000;
           state.error = String(error?.message || error || "No reply").replace(/\s+/g, " ").slice(0, 160);
           state.baseline = null;

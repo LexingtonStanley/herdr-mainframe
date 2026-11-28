@@ -6,7 +6,11 @@ host=$(uname -n)
 case "$os" in
 Linux)
     [ -r /proc/stat ] && [ -r /proc/meminfo ] || exit 1
+    # BusyBox df has no -l. Only real devices (and ZFS/bcachefs datasets) go on to awk, at most 200:
+    # the list travels in the environment, and a host with thousands of mounts would overflow it.
     drives=$(df -lkPT 2>/dev/null)
+    [ -n "$drives" ] || drives=$(df -kPT 2>/dev/null)
+    drives=$(printf '%s\n' "$drives" | awk 'NR == 1 || $1 ~ /^\/dev\// || $2 ~ /^(zfs|bcachefs)$/' | head -n 200)
     if command -v nvidia-smi >/dev/null 2>&1; then
         nvidia=$(nvidia-smi --query-gpu=pci.bus_id,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits 2>/dev/null) || nvidia=
     fi
@@ -22,7 +26,7 @@ Darwin)
     vm=$(vm_stat)
     swap=$(sysctl -n vm.swapusage)
     cpu=$(top -l 2 -s 1 -n 0 | awk '/^CPU usage:/ {line=$0} END {print line}')
-    drives=$(df -lkP 2>/dev/null)
+    drives=$(df -lkP 2>/dev/null | awk 'NR == 1 || $1 ~ /^\/dev\//' | head -n 200)
     # A bounded registry walk per driver family. Keep only fields we can display.
     gpu=$(for family in IOAccelerator AGXAccelerator; do
         ioreg -r -d 1 -w 0 -c "$family" 2>/dev/null
@@ -61,6 +65,13 @@ function driveRows(    rows,n,i,a,mount,s,start) {
         s=substr(s,1,start-1)
         if (s ~ /^\/dev\/(loop|ram|zram|fd\/)/ || s ~ / (squashfs|overlay|tmpfs|efivarfs|iso9660)$/) continue
         if (s !~ /^\/dev\// && s !~ / (zfs|bcachefs)$/) continue
+        if (ENVIRON["os"] == "Darwin") {
+            # APFS volumes share their container, so the Used of one volume says little about how
+            # full the disk is: show the container (size less free), once, as "/", and leave out
+            # the other system volumes.
+            if (mount ~ /^\/System\/Volumes\//) continue
+            a[2] = a[1] - a[3]
+        }
         disks=add(disks,"{\"mount\":" quote(mount) ",\"used\":" bytes(a[2],1024) ",\"total\":" bytes(a[1],1024) "}")
     }
 }

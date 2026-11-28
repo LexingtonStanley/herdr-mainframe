@@ -183,11 +183,14 @@ function openDock(address, keyboard, cx) {
   });
 }
 // Closing the dock hands the keyboard back to the towers. A click on an agent puts it in the dock's
-// terminal, and hiding the dock doesn't take it back: closed with its × (or when its session ended),
-// Esc and the arrows went to a terminal nobody could see instead of the Grid (issue #5).
-const closeDock = () => {
+// terminal, and hiding the dock doesn't take it back: closed with its ×, Esc and the arrows went to
+// a terminal nobody could see instead of the Grid (issue #5). `refocus`: the × always; the dock
+// closing itself (its session ended) only when the keyboard was in it, so a dialog that has the
+// keyboard (the Grid's help, the character picker) keeps it.
+const keyboardInDock = () => { const f = focused(), d = shared(DOCKED); return Boolean(f && !f.pane && d && f.terminal === d); };
+const closeDock = (refocus = false) => {
   run("layout.hide", { id: DOCK }); setShared(DOCKED, null); setShared(VIEW, null);
-  if (showing() === "grid") run(`${MOD}.refocus`);
+  if (refocus && showing() === "grid") run(`${MOD}.refocus`);
 };
 
 // Who started whom. Herdr's core records the terminal an agent was started from (hc run: an
@@ -988,7 +991,7 @@ export default class Grid extends View {
     const frame = v_flex().size_full().px(12).py(6).gap(4).justify_center().bg(C.bar).rounded(10).border(1).border_color(C.border);
     if (!k) {
       // Its session ended: the dock closes (its block would go on to show some other agent).
-      if (addr && dockOpen() && this.closedFor !== addr) { this.closedFor = addr; closeDock(); }
+      if (addr && dockOpen() && this.closedFor !== addr) { this.closedFor = addr; closeDock(keyboardInDock()); }
       return frame.child(div().text_size(12).text_color(C.dim).child(addr ? "That session has ended." : "Click an agent to open its session here."));
     }
     this.closedFor = null;
@@ -1043,7 +1046,7 @@ export default class Grid extends View {
       .child(round("dock-prev", "‹", "The one before, as the towers stand", () => run(`${MOD}.dock-prev`)))
       .child(round("dock-next", "›", "The next one, as the towers stand", () => run(`${MOD}.dock-next`)))
       .child(div().id("dock-close").flex_none().size(24).rounded(6).flex().items_center().justify_center().cursor_pointer().text_color(C.dim)
-        .hover((s) => s.bg(C.hover).text_color(C.text)).on_mouse_down("left", stop).on_click(() => closeDock())
+        .hover((s) => s.bg(C.hover).text_color(C.text)).on_mouse_down("left", stop).on_click(() => closeDock(true))
         .tooltip("Close (Esc on the towers)").child(svg("mods/pane/close.svg").size(13)));
     // The family: who started it (and the others it started), what it started, and its own
     // sub-agents: each a chip, and a click opens that one here.

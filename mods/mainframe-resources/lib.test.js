@@ -204,6 +204,9 @@ test.skipIf(process.platform === "win32")("Darwin collector turns simulated comm
       echo 'Filesystem 1024-blocks Used Available Capacity Mounted on'
       echo '/dev/disk3s1s1 482797652 10476624 200000000 5% /'
       echo 'devfs 205 205 0 100% /dev'
+      echo '/dev/disk3s6 482797652 2097172 200000000 2% /System/Volumes/VM'
+      echo '/dev/disk3s5 482797652 270000000 200000000 58% /System/Volumes/Data'
+      echo 'map auto_home 0 0 0 100% /System/Volumes/Data/home'
       echo '/dev/disk4s1 976426672 207230368 769196304 21% /Volumes/Video Work'
     }
     ioreg() {
@@ -221,7 +224,9 @@ test.skipIf(process.platform === "win32")("Darwin collector turns simulated comm
   expect(s.uptime).toBe(68702);
   expect(s.memory.used).toBe(34359738368 - 806400 * 16384);
   expect(s.swap.used).toBe(256 * 1024 * 1024);
+  // APFS: the system's other volumes are left out, and "/" shows its container (size less free).
   expect(s.drives.map(d => d.mount)).toEqual(["/", "/Volumes/Video Work"]);
+  expect(s.drives[0].used).toBe((482797652 - 200000000) * 1024);
   expect(s.gpus.map(g => [g.name, g.percent])).toEqual([["AGXAccelerator", 8]]);
   expect(s.gpus[0].vram.percent).toBe(75);
 });
